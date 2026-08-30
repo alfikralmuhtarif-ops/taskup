@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TaskUp.Api/TaskUp.Api.csproj" />
+    <Project Path="src/TaskUp.Application/TaskUp.Application.csproj" />
+    <Project Path="src/TaskUp.Domain/TaskUp.Domain.csproj" />
+    <Project Path="src/TaskUp.Infrastructure/TaskUp.Infrastructure.csproj" />
+  </Folder>
+</Solution>

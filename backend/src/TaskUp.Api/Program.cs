@@ -1,0 +1,288 @@
+using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using TaskUp.Api.Filters;
+using TaskUp.Api.Middleware;
+using TaskUp.Api.Services;
+using TaskUp.Application.Abstractions;
+using TaskUp.Application.Admin;
+using TaskUp.Application.Ai;
+using TaskUp.Application.Chat;
+using TaskUp.Application.Files;
+using TaskUp.Application.Identity;
+using TaskUp.Application.Invites;
+using TaskUp.Application.Notes;
+using TaskUp.Application.Notifications;
+using TaskUp.Application.People;
+using TaskUp.Application.Projects;
+using TaskUp.Application.RealTime;
+using TaskUp.Application.Tasks;
+using TaskUp.Api.BackgroundJobs;
+using TaskUp.Infrastructure.Admin;
+using TaskUp.Infrastructure.Ai;
+using TaskUp.Infrastructure.Authorization;
+using TaskUp.Infrastructure.Chat;
+using TaskUp.Infrastructure.Files;
+using TaskUp.Infrastructure.Identity;
+using TaskUp.Infrastructure.Invites;
+using TaskUp.Infrastructure.Notes;
+using TaskUp.Infrastructure.Notifications;
+using TaskUp.Infrastructure.People;
+using TaskUp.Infrastructure.Persistence;
+using TaskUp.Infrastructure.Projects;
+using TaskUp.Infrastructure.RealTime;
+using TaskUp.Infrastructure.Search;
+using TaskUp.Infrastructure.Security;
+using TaskUp.Infrastructure.Tasks;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+
+builder.Services.AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddOpenApi();
+
+builder.Services.AddDbContext<TaskUpDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()!;
+
+builder.Services.Configure<OtpDevOptions>(builder.Configuration.GetSection(OtpDevOptions.SectionName));
+
+builder.Services.Configure<EncryptionOptions>(builder.Configuration.GetSection(EncryptionOptions.SectionName));
+builder.Services.AddSingleton<IFieldEncryptionService, AesGcmFieldEncryptionService>();
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+builder.Services.AddScoped<IIdentityService, IdentityService>();
+builder.Services.AddScoped<ISmsSender, LoggingSmsSender>();
+
+builder.Services.AddScoped<ITaskAuthorizationService, TaskAuthorizationService>();
+builder.Services.AddScoped<IProjectAuthorizationService, ProjectAuthorizationService>();
+builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<IProjectService, ProjectService>();
+
+builder.Services.Configure<FileStorageOptions>(builder.Configuration.GetSection(FileStorageOptions.SectionName));
+builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<FileStorageOptions>>().Value);
+builder.Services.AddScoped<IFileStorage, LocalFileStorage>();
+builder.Services.AddScoped<IFilesService, FilesService>();
+
+builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<IPeopleService, PeopleService>();
+builder.Services.AddScoped<IInviteService, InviteService>();
+
+builder.Services.AddScoped<INoteAuthorizationService, NoteAuthorizationService>();
+builder.Services.AddScoped<INoteService, NoteService>();
+builder.Services.AddScoped<NoteRlsActionFilter>();
+
+builder.Services.AddScoped<IPushSender, LoggingPushSender>();
+builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
+builder.Services.AddScoped<ISearchProvider, PostgresSearchProvider>();
+
+builder.Services.AddScoped<IAiTaskInsightProvider, StubAiTaskInsightProvider>();
+builder.Services.AddScoped<IAiTrialPolicy, TrialAiPolicy>();
+builder.Services.AddScoped<IAiService, AiService>();
+
+builder.Services.AddSignalR();
+builder.Services.AddScoped<IRealTimeNotifier, SignalRNotifier>();
+
+builder.Services.AddHostedService<OverdueTaskSweepJob>();
+builder.Services.AddHostedService<NotesTrashPurgeJob>();
+
+builder.Services.Configure<AdminBootstrapOptions>(builder.Configuration.GetSection(AdminBootstrapOptions.SectionName));
+builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AdminBootstrapOptions>>().Value);
+builder.Services.AddScoped<IAdminService, AdminService>();
+
+builder.Services.AddCors(options =>
+{
+    // Covers both frontends (admin panel, mobile web prototype) — was scoped to just the
+    // admin panel's origin, which silently CORS-blocked every request from the mobile app
+    // (browser-only failure; curl/server-to-server calls never hit this, which is why it
+    // looked like a validation problem from the client's error message alone).
+    options.AddPolicy("Frontends", policy => policy
+        .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+});
+
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+
+// Caps how many OTPs any one client IP can trigger — the dev SMS sender is free/local, but
+// in production this is a real per-message cost and a spam/harassment vector (bombing a
+// phone number with codes it never asked for) if left unbounded. Partitioned by IP (not a
+// plain AddFixedWindowLimiter, which would share a single global bucket across every caller
+// and 429 the whole app once 5 people anywhere had requested an OTP in the same window).
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("otp", httpContext => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(15),
+            QueueLimit = 0,
+        }));
+});
+
+// TLS 1.2/1.3-only is the real posture whenever Kestrel terminates TLS directly.
+// Behind a reverse proxy/load balancer (ALB, nginx, Cloudflare) that layer terminates
+// TLS instead and must be configured with the same minimum version separately (see SECURITY.md).
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ConfigureHttpsDefaults(https =>
+    {
+        https.SslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13;
+    });
+});
+
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+    // Preload intentionally left off: hstspreload.org submission is a manual, one-way step
+    // that must only happen after every subdomain is confirmed HTTPS-only in production.
+});
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwtOptions.Audience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+        };
+
+        // SignalR's browser/mobile WebSocket clients can't set an Authorization header,
+        // so the hub connection carries the access token as a query string parameter.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            },
+            // IdentityService only checks IsDisabled at login/refresh time — an access token
+            // issued before an admin disables the account otherwise stays valid for the rest
+            // of its 15-minute lifetime, letting a just-disabled user keep creating/editing
+            // content until it naturally expires. Checking on every request closes that gap
+            // at the cost of one extra query per authenticated call.
+            OnTokenValidated = async context =>
+            {
+                var sub = context.Principal?.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub);
+                if (sub is null || !Guid.TryParse(sub, out var userId))
+                {
+                    context.Fail("Invalid token subject.");
+                    return;
+                }
+
+                var db = context.HttpContext.RequestServices.GetRequiredService<TaskUpDbContext>();
+                var isDisabled = await db.Users
+                    .Where(u => u.Id == userId)
+                    .Select(u => u.IsDisabled)
+                    .FirstOrDefaultAsync();
+
+                if (isDisabled)
+                {
+                    context.Fail("This account has been disabled.");
+                }
+            },
+        };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireClaim("is_admin", "true"));
+});
+
+var app = builder.Build();
+
+app.UseExceptionHandler();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+else
+{
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()";
+    // This API only ever returns JSON — 'none' is safe here. The two SPA frontends
+    // (admin panel, mobile prototype) need their own CSP set by whatever serves their
+    // static build in production; that's provider/host config, not this API's job.
+    headers["Content-Security-Policy"] = "default-src 'none'";
+    await next();
+});
+
+app.UseCors("Frontends");
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
+
+var fileStorageOptions = app.Services.GetRequiredService<FileStorageOptions>();
+var uploadsPath = Path.Combine(app.Environment.ContentRootPath, fileStorageOptions.RootPath);
+Directory.CreateDirectory(uploadsPath);
+
+// UseStaticFiles is terminal middleware that never reaches UseAuthentication/UseAuthorization
+// even when placed after them, so uploaded files (task/chat attachments) need their own
+// authentication gate here — otherwise anyone who learns/guesses a storage URL could fetch
+// the raw bytes regardless of the ownership check enforced by FilesController/FilesService.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments(fileStorageOptions.PublicPathPrefix) &&
+        context.User.Identity?.IsAuthenticated != true)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+
+    await next();
+});
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
+    RequestPath = fileStorageOptions.PublicPathPrefix,
+});
+
+app.MapControllers();
+app.MapHub<NotificationsHub>("/hubs/notifications");
+
+app.Run();

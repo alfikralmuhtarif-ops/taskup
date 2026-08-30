@@ -1,0 +1,81 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+:root {
+  --primary: #2185C7;
+  --primary-dark: #1a6fa8;
+  --primary-light: #EBF5FF;
+  --background: #ffffff;
+  --surface: #F5F7FA;
+  --text: #111827;
+  --text-secondary: #6B7280;
+  --border: #E5E7EB;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error: #EF4444;
+  --card: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'IBM Plex Sans Arabic', 'Inter', sans-serif;
+  background: #E8EDF2;
+  direction: rtl;
+}
+
+::-webkit-scrollbar { width: 0; height: 0; }
+
+/* ── RTL baseline ─────────────────────────────────────────── */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="ltr"] {
+  text-align: left;
+}
+
+/* Inputs & textareas follow document direction by default */
+[dir="rtl"] input:not([data-ltr]),
+[dir="rtl"] textarea {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="ltr"] input:not([data-ltr]),
+[dir="ltr"] textarea {
+  text-align: left;
+  direction: ltr;
+}
+
+/* Numeric / code inputs always stay LTR regardless of document dir */
+input[data-ltr] {
+  direction: ltr;
+  text-align: left;
+}
+
+/* Labels and paragraphs inherit direction cleanly */
+[dir="rtl"] label,
+[dir="rtl"] p,
+[dir="rtl"] span,
+[dir="rtl"] div {
+  direction: inherit;
+}
+
+.font-arabic {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+.font-en {
+  font-family: 'Inter', sans-serif;
+  direction: ltr;
+}

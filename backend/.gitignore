@@ -1,0 +1,20 @@
+# Build output
+bin/
+obj/
+
+# User/environment-specific config — never commit real secrets or keys
+appsettings.*.local.json
+.env
+*.env
+
+# Local file storage adapter output (dev-only; production uses object storage)
+uploads/
+
+# Editor/OS
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+*.user

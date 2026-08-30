@@ -1,0 +1,10 @@
+{
+  "description": "TaskUp streamlines task management for teams, enhancing productivity with a clean, user-friendly interface and customizable features to track progress efficiently.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

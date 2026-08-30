@@ -1,0 +1,32 @@
+# ── Dependencies / build output ───────────────────────────────────────────────
+node_modules/
+dist/
+build/
+bin/
+obj/
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# appsettings.Development.json holds the real AES-256 field-encryption key used by
+# the local dev database (Encryption:Keys). Losing or leaking it is not recoverable
+# — every encrypted User.Phone / Message.Text / note body is tied to it. Keep a copy
+# somewhere safe outside the repo; a fresh clone must supply its own key and will
+# not be able to read an existing dev database without the original.
+appsettings.Development.json
+appsettings.*.Local.json
+.env
+.env.*
+!.env.example
+
+# ── User-uploaded content (LocalFileStorage dev stub) ─────────────────────────
+backend/src/TaskUp.Api/uploads/
+
+# ── Editor / OS ───────────────────────────────────────────────────────────────
+.DS_Store
+.vs/
+.vscode/
+.idea/
+*.user
+*.swp
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
