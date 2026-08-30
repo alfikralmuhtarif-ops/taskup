@@ -7,6 +7,7 @@ import {
   type BackendNoteListItem, type BackendNoteDetail, type BackendSearchResult, type BackendActivityItem, type BackendInvite,
   type BackendConversation, type BackendNotificationPreferences, type BackendNotificationDeliverySettings,
 } from './lib/api'
+import { startRealtime, stopRealtime, subscribe } from './lib/realtime'
 
 // ─── Icon Kit ─────────────────────────────────────────────────────────────────
 // Single consistent line-icon set (24x24 viewBox, currentColor stroke) used across
@@ -4024,6 +4025,7 @@ function ConversationsScreen({ onOpenChat, onNewChat, lang, currentUserId, refre
   // navigated back to this screen. null = still loading (don't render an empty state yet).
   const [conversations, setConversations] = useState<Conversation[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [liveVersion, setLiveVersion] = useState(0)
 
   useEffect(() => {
     if (!currentUserId) { setConversations([]); return }
@@ -4031,7 +4033,11 @@ function ConversationsScreen({ onOpenChat, onNewChat, lang, currentUserId, refre
       .then(items => { setConversations(items.map(c => mapBackendConversation(c, lang))); setLoadError(null) })
       // Surfaced, not swallowed — an empty list and a failed request looked identical before.
       .catch((e: unknown) => { setConversations([]); setLoadError(e instanceof ApiError ? e.message : String(e)) })
-  }, [currentUserId, lang, refreshKey])
+  }, [currentUserId, lang, refreshKey, liveVersion])
+
+  // A message arriving over the hub changes this list's previews and ordering, so
+  // bump a counter the fetch above depends on rather than duplicating the mapping here.
+  useEffect(() => subscribe('message:new', () => setLiveVersion(v => v + 1)), [])
 
   const displayed = conversations ?? []
   const totalUnread = displayed.reduce((s, c) => s + c.unread, 0)
@@ -4202,6 +4208,31 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
     }).catch(() => { /* leave the (empty) local list as-is on failure */ })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conv.realConversationId])
+
+  // Live delivery. Without this the fetch above was the only time messages ever
+  // loaded, so anything the other person sent while this screen was open simply
+  // never appeared. Messages I send are appended by the send handler itself, so
+  // only the other side's are taken from the hub — and the id check keeps a
+  // duplicate out if that ever stops being true.
+  useEffect(() => {
+    if (!isReal || !conv.realConversationId) return
+    return subscribe('message:new', incoming => {
+      if (incoming.conversationId !== conv.realConversationId) return
+      if (incoming.senderId === currentUserId) return
+      setMessages(prev => {
+        if (prev.some(m => m.id === incoming.id)) return prev
+        return [...prev, {
+          id: incoming.id,
+          from: 'them',
+          text: incoming.text ?? '',
+          textEn: incoming.text ?? '',
+          time: formatTime(incoming.createdAt),
+        }]
+      })
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 60)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conv.realConversationId, isReal, currentUserId])
 
   const handleBlock = async () => {
     if (!conv.realUserId) return
@@ -5301,6 +5332,18 @@ export default function App() {
     if (!currentUser.id) { setUnreadNotifs(0); return }
     notificationsApi.list('unread').then(items => setUnreadNotifs(items.length)).catch(() => setUnreadNotifs(0))
   }, [currentUser.id, screen, dataVersion])
+
+  // The hub connection is per-session, not per-screen: open it once a real account
+  // exists and close it on logout. Every screen that consumes it also fetches over
+  // HTTP, so if the connection never comes up the app behaves exactly as before.
+  useEffect(() => {
+    if (!currentUser.id) return
+    startRealtime()
+    return () => { stopRealtime() }
+  }, [currentUser.id])
+
+  // Live badge — the bell used to update only when a screen change re-ran the fetch above.
+  useEffect(() => subscribe('notification:new', () => setUnreadNotifs(n => n + 1)), [])
 
   const isRtl = lang === 'ar'
 

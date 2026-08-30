@@ -54,6 +54,35 @@ Double underscore is the .NET nesting separator; `Encryption__Keys__1` maps to `
 
 ---
 
-## 4. Contact addresses used in published text
+## 4. Native app packaging
+
+The user app is a React/Vite web app wrapped by **Capacitor 8** — `capacitor.config.ts` at the root of `Front-end design for TaskUp/`, with both native projects committed:
+
+| Platform | Path | State |
+|---|---|---|
+| iOS | `ios/App/App.xcodeproj` | **Verified building.** `xcodebuild -scheme App -sdk iphonesimulator` produces a real `App.app` bundle with bundle id `net.taskupapp.app` |
+| Android | `android/` | Scaffolded and Gradle-synced, but **not compiled here** — this machine has no JDK and `ANDROID_HOME` is unset. Needs a JDK 17+ and the Android SDK to verify |
+
+Bundle / application id is `net.taskupapp.app` (reverse of the registered domain).
+
+**Workflow — the web build is baked into the native binary, so this order matters:**
+
+```
+npx vite build     # produce dist/
+npx cap sync       # copy dist/ into ios/ and android/, refresh native deps
+npx cap open ios   # or: open android
+```
+
+Forgetting `vite build` before `cap sync` ships the *previous* web build inside the app, with no error anywhere — the native equivalent of the "rebuilt but never restarted the process" mistake already recorded in SECURITY.md.
+
+**CORS**: the webview is a cross-origin caller. iOS serves the bundle from `capacitor://localhost` and Android from `https://localhost` (`androidScheme: 'https'`); all three localhost forms are now in `Cors:AllowedOrigins` in both `appsettings.json` and `appsettings.Production.json`. Without them the native app gets a silent CORS block on every request — the same failure that once looked like "the number is invalid" during registration.
+
+**Known gap for local native development**: iOS App Transport Security blocks cleartext HTTP, and no ATS exception was added to `Info.plist` — deliberately, since weakening transport security for a dev convenience is the wrong trade. Production is HTTPS (`https://api.taskupapp.net`) so this does not affect a real build; to point a simulator at a local `http://localhost:5311` API, add `NSAllowsLocalNetworking` to `Info.plist` locally and do not commit it.
+
+**Still required before either store will accept a submission**: an Apple Developer account and a Google Play developer account, signing certificates and provisioning profiles, app icons and splash screens (currently Capacitor defaults), store listings and screenshots, and — for Apple — a working demo account, which is impossible until a real SMS provider replaces `LoggingSmsSender`.
+
+---
+
+## 5. Contact addresses used in published text
 
 The app's in-app legal text and the root `PRIVACY_POLICY.md` / `TERMS_OF_SERVICE.md` all now point to a single mailbox, **`support@taskupapp.net`**, which needs to exist before the app is submitted to either store. The in-app text previously used `legal@taskup.app`, `privacy@taskup.app` and `support@taskup.app` — a domain we do not own — and a placeholder phone number `920XXXXXXX`, which has been removed rather than shipped as a fake contact in a privacy policy. Add a real support phone number back to `src/i18n.ts` (Privacy §12, both languages) when one exists.

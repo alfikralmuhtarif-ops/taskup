@@ -194,7 +194,7 @@ export const t = {
         },
         {
           heading: '2. وصف الخدمة',
-          body: 'TaskUp هو تطبيق لإدارة المهام والفرق، يتيح للمستخدمين إنشاء المهام وتعيينها ومتابعتها وإكمالها. الخدمة الأساسية مجانية، وتتوفر ميزات إضافية ضمن اشتراك Task AI المدفوع.',
+          body: 'TaskUp هو تطبيق لإدارة المهام والفرق، يتيح للمستخدمين إنشاء المهام وتعيينها ومتابعتها وإكمالها. الخدمة مجانية بالكامل حالياً، ولا توجد اشتراكات أو مدفوعات داخل التطبيق. إذا أضفنا ميزات مدفوعة مستقبلاً، سنحدّث هذه الشروط ونُعلمك قبل تفعيلها.',
         },
         {
           heading: '3. حساب المستخدم',
@@ -513,7 +513,7 @@ export const t = {
         },
         {
           heading: '2. Description of Service',
-          body: 'TaskUp is a task and team management application that allows users to create, assign, track, and complete tasks. The core service is free, with additional features available under a paid Task AI subscription.',
+          body: 'TaskUp is a task and team management application that allows users to create, assign, track, and complete tasks. The service is currently free in full — there are no subscriptions and no in-app purchases. If paid features are introduced later, we will update these Terms and notify you before they take effect.',
         },
         {
           heading: '3. User Account',
