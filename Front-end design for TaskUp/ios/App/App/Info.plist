@@ -24,6 +24,20 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Permits cleartext HTTP to local/link-local hosts only, so a developer can point
+	     a simulator or device at an API running on their own machine. It does NOT relax
+	     App Transport Security for the internet: the production API is reached over
+	     https://api.taskupapp.net and is still fully protected. Apple accepts this key
+	     without a justification in App Review. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<!-- Shown when iOS asks permission to find devices on the local network, which the
+	     key above can trigger during development. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>TaskUp uses your local network only to reach a development server during testing.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

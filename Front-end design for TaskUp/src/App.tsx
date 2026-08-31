@@ -8,6 +8,14 @@ import {
   type BackendConversation, type BackendNotificationPreferences, type BackendNotificationDeliverySettings,
 } from './lib/api'
 import { startRealtime, stopRealtime, subscribe } from './lib/realtime'
+import { Capacitor } from '@capacitor/core'
+
+// True inside the iOS/Android shell. The layout below was built as a phone *mockup*
+// for a desktop browser — a 390x844 rounded card with a fake 9:41 status bar, floating
+// on a gradient. Rendered natively that becomes a phone drawn inside a phone, with a
+// fake clock above the real one. Natively the app must simply fill the screen and
+// respect the device's own safe areas instead.
+const IS_NATIVE = Capacitor.isNativePlatform()
 
 // ─── Icon Kit ─────────────────────────────────────────────────────────────────
 // Single consistent line-icon set (24x24 viewBox, currentColor stroke) used across
@@ -5647,18 +5655,41 @@ export default function App() {
     )
   }
 
+  const outerStyle: React.CSSProperties = IS_NATIVE
+    ? { minHeight: '100dvh', background: '#fff' }
+    : { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #1a6fa8 0%, #2185C7 50%, #4BA8E8 100%)', padding: '10px' }
+
+  const frameStyle: React.CSSProperties = IS_NATIVE
+    ? {
+        // Fill the device. env(safe-area-inset-*) keeps content clear of the Dynamic
+        // Island and the home indicator; 100dvh (not 100vh) so the URL-bar-less
+        // webview doesn't leave a gap at the bottom.
+        width: '100%', height: '100dvh', background: '#fff',
+        paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
+        position: 'relative', display: 'flex', flexDirection: 'column',
+        fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter',
+      }
+    : {
+        width: 390, height: 844, background: '#fff', borderRadius: 48, overflow: 'hidden',
+        boxShadow: '0 20px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.1)',
+        position: 'relative', display: 'flex', flexDirection: 'column',
+        fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter',
+      }
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #1a6fa8 0%, #2185C7 50%, #4BA8E8 100%)', padding: '10px' }}>
-      <div dir={isRtl ? 'rtl' : 'ltr'} style={{ width: 390, height: 844, background: '#fff', borderRadius: 48, overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.1)', position: 'relative', display: 'flex', flexDirection: 'column', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter' }}>
-        {/* Status Bar */}
-        <div dir="ltr" style={{ background: '#fff', padding: '12px 24px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', fontFamily: 'Inter' }}>9:41</span>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', color: '#111827' }}>
-            <SignalIcon />
-            <WifiIcon />
-            <BatteryIcon />
+    <div style={outerStyle}>
+      <div dir={isRtl ? 'rtl' : 'ltr'} style={frameStyle}>
+        {/* Simulated status bar — browser mockup only; the device draws the real one. */}
+        {!IS_NATIVE && (
+          <div dir="ltr" style={{ background: '#fff', padding: '12px 24px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', fontFamily: 'Inter' }}>9:41</span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', color: '#111827' }}>
+              <SignalIcon />
+              <WifiIcon />
+              <BatteryIcon />
+            </div>
           </div>
-        </div>
+        )}
 
         <div style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>{renderScreen()}</div>
@@ -5666,9 +5697,12 @@ export default function App() {
           {showCreate && <CreateSheet onClose={() => setShowCreate(false)} onTask={() => { setShowCreate(false); setScreen('createTask') }} onProject={() => { setShowCreate(false); setScreen('createProject') }} lang={lang} />}
         </div>
 
-        <div style={{ height: 20, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: 120, height: 4, background: '#E5E7EB', borderRadius: 2 }} />
-        </div>
+        {/* Fake home indicator — mockup only; iOS draws its own over the safe area. */}
+        {!IS_NATIVE && (
+          <div style={{ height: 20, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 120, height: 4, background: '#E5E7EB', borderRadius: 2 }} />
+          </div>
+        )}
       </div>
     </div>
   )
