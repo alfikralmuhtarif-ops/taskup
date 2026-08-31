@@ -1,0 +1,78 @@
+# TaskUp — single-VPS deployment.
+#
+# Deliberately one API instance: SignalR keeps its groups in memory with no Redis
+# backplane, and the two AddHostedService jobs run in-process, so a second replica
+# would silently break live chat and duplicate overdue notifications. Scaling out
+# means adding a backplane first — see docs/deployment.md.
+#
+#   cp .env.example .env   # then fill it in, on the server, never in git
+#   docker compose up -d --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Never published to the host: the database is reachable only on the internal
+    # network. Use `docker compose exec db psql` for a shell.
+
+  migrate:
+    build:
+      context: ./backend
+      target: migrations
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      target: runtime
+    restart: unless-stopped
+    environment:
+      ConnectionStrings__Default: "Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
+      Encryption__Keys__1: ${ENCRYPTION_KEY_V1}
+      AdminBootstrap__Secret: ${ADMIN_BOOTSTRAP_SECRET}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # No `ports:` on purpose — nginx is the only way in, which is what lets
+    # Program.cs clear KnownProxies safely.
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.taskupapp.net}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/letsencrypt:/etc/letsencrypt:ro
+      - ./deploy/certbot-webroot:/var/www/certbot:ro
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  uploads:

@@ -1,0 +1,12 @@
+# Keep the build context small — node_modules alone is ~180 MB across the two SPAs,
+# and every byte of it is re-sent to the daemon on each build.
+**/node_modules
+**/dist
+**/bin
+**/obj
+**/.git
+ios/
+android/
+**/uploads
+*.log
+.DS_Store

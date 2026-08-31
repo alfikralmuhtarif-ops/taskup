@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using TaskUp.Api.Filters;
 using TaskUp.Api.Middleware;
 using TaskUp.Api.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using TaskUp.Application.Abstractions;
 using TaskUp.Application.Admin;
 using TaskUp.Application.Ai;
@@ -221,6 +222,25 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+
+// Must run before anything that inspects the scheme or the client IP. In production
+// the API sits behind nginx, which terminates TLS and forwards plain HTTP on an
+// internal Docker network — so without this every request looks like HTTP to Kestrel,
+// `UseHttpsRedirection` below answers 307 to the https URL, nginx forwards it back as
+// HTTP, and the API is unreachable behind an infinite redirect loop. It also restores
+// the real client IP, which the per-IP OTP rate limiter depends on to be worth anything.
+//
+// KnownNetworks/KnownProxies are cleared deliberately: the defaults trust only
+// loopback, and the reverse proxy is a separate container with an arbitrary private
+// IP. That is safe here only because the API port is never published to the host —
+// nginx is the sole route in (see docker-compose.yml). If the API is ever exposed
+// directly, replace this with an explicit KnownProxies entry.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+    KnownNetworks = { },
+    KnownProxies = { },
+});
 
 app.UseExceptionHandler();
 
