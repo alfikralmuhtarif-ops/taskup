@@ -35,12 +35,15 @@ ENTRYPOINT ["sh", "-c", "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f /migration
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Never run as root; the uploads volume is chowned to this user in compose.
-RUN adduser --system --group --uid 64198 taskup
 COPY --from=build /app/publish .
-RUN mkdir -p /app/uploads && chown -R taskup:taskup /app
 
-USER taskup
+# The image already ships a non-root user `app` (uid 1654) and exposes it as
+# $APP_UID — Microsoft's documented pattern. Creating one here failed anyway:
+# these images no longer include `adduser` (only `useradd`), so the original
+# line died with "exit code 127" on the first real build.
+RUN mkdir -p /app/uploads && chown -R $APP_UID:$APP_UID /app
+
+USER $APP_UID
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_HTTP_PORTS=8080 \
     FileStorage__RootPath=/app/uploads
