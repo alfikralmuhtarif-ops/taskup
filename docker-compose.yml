@@ -76,6 +76,7 @@ services:
       - ./deploy/letsencrypt:/etc/letsencrypt:ro
       - ./deploy/certbot-webroot:/var/www/certbot
       - spa:/usr/share/nginx/html
+      - ./deploy/panel:/usr/share/nginx/html/panel:ro
     depends_on:
       - api
 
