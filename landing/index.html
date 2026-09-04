@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TaskUp — من المهمة إلى الإنجاز</title>
+<meta name="description" content="تطبيق عربي لإدارة المهام والمشاريع والملاحظات ومحادثات الفريق. مجاني بالكامل، ورقم جوالك ورسائلك وملاحظاتك مشفّرة بمعيار AES-256-GCM.">
+<meta name="theme-color" content="#2185C7">
+<link rel="icon" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/fonts/alexandria.css">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="TaskUp — من المهمة إلى الإنجاز">
+<meta property="og:description" content="أدر مهامك ومشاريعك وفريقك من مكان واحد. مجاني، وعربي، ومشفّر.">
+<meta property="og:image" content="/logo.png">
+<meta property="og:locale" content="ar_SA">
+
+<style>
+:root{
+  --brand:#2185C7; --brand-dark:#1a6fa8; --brand-light:#4BA8E8;
+  --ink:#0F1B2A; --body:#4B5563; --muted:#8B96A5;
+  --line:#E6EBF1; --surface:#fff; --bg:#F7F9FC; --bg-alt:#EEF4FA;
+  --ok:#10B981; --warn:#D97706;
+  --radius:18px; --shadow:0 4px 24px rgba(15,27,42,.07);
+  --shadow-lg:0 24px 60px rgba(15,27,42,.14);
+  --max:1140px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--body);
+  font-family:'Alexandria',system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-size:16px;line-height:1.85;-webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+h1,h2,h3,h4{color:var(--ink);line-height:1.35;margin:0;font-weight:700}
+p{margin:0}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 22px}
+.eyebrow{
+  display:inline-block;font-size:12.5px;font-weight:600;color:var(--brand);
+  background:#E8F3FC;border:1px solid #CFE6F8;border-radius:100px;padding:6px 15px;
+  letter-spacing:.2px;
+}
+
+/* ── nav ─────────────────────────────────────────────── */
+.nav{
+  position:sticky;top:0;z-index:60;
+  background:rgba(247,249,252,.82);backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid transparent;transition:border-color .25s,box-shadow .25s;
+}
+.nav.stuck{border-bottom-color:var(--line);box-shadow:0 2px 18px rgba(15,27,42,.05)}
+.nav-in{display:flex;align-items:center;gap:16px;height:70px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--ink);font-size:19px}
+.brand img{width:34px;height:34px;border-radius:9px}
+.nav-links{display:flex;gap:26px;margin-inline-start:auto;font-size:14.5px;font-weight:500}
+.nav-links a{color:var(--body);transition:color .2s}
+.nav-links a:hover{color:var(--brand)}
+.nav-cta{
+  background:var(--brand);color:#fff;padding:9px 20px;border-radius:11px;
+  font-size:14px;font-weight:600;transition:background .2s,transform .2s;
+}
+.nav-cta:hover{background:var(--brand-dark);transform:translateY(-1px)}
+.burger{display:none;margin-inline-start:auto;background:none;border:0;padding:8px;cursor:pointer}
+.burger span{display:block;width:22px;height:2px;background:var(--ink);border-radius:2px}
+.burger span+span{margin-top:5px}
+
+/* ── hero ────────────────────────────────────────────── */
+.hero{position:relative;padding:74px 0 90px;overflow:hidden}
+.hero::before{
+  content:'';position:absolute;inset-inline-start:-260px;top:-320px;
+  width:760px;height:760px;border-radius:50%;
+  background:radial-gradient(circle,rgba(33,133,199,.13),transparent 62%);
+}
+.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;position:relative}
+.hero h1{font-size:clamp(32px,5.2vw,54px);font-weight:800;letter-spacing:-.5px;margin:18px 0 0}
+.hero h1 .hl{
+  color:var(--brand);position:relative;white-space:nowrap;
+}
+.hero h1 .hl::after{
+  content:'';position:absolute;inset-inline:0;bottom:6px;height:11px;
+  background:rgba(33,133,199,.16);border-radius:4px;z-index:-1;
+}
+.hero .lede{font-size:clamp(16px,2vw,18.5px);margin:20px 0 0;max-width:520px}
+.hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}
+.btn{
+  display:inline-flex;align-items:center;gap:9px;border:0;cursor:pointer;
+  padding:14px 26px;border-radius:13px;font-family:inherit;font-size:15px;font-weight:600;
+  transition:transform .2s,box-shadow .2s,background .2s;
+}
+.btn-primary{background:var(--brand);color:#fff;box-shadow:0 8px 22px rgba(33,133,199,.3)}
+.btn-primary:hover{background:var(--brand-dark);transform:translateY(-2px);box-shadow:0 12px 30px rgba(33,133,199,.36)}
+.btn-ghost{background:var(--surface);color:var(--ink);border:1.5px solid var(--line)}
+.btn-ghost:hover{border-color:var(--brand);color:var(--brand)}
+.hero-note{display:flex;align-items:center;gap:8px;margin-top:20px;font-size:13.5px;color:var(--muted)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none;box-shadow:0 0 0 4px rgba(16,185,129,.15)}
+
+/* phone mock */
+.phone-stage{display:flex;justify-content:center;position:relative}
+.phone{
+  width:290px;height:592px;background:#0F1B2A;border-radius:44px;padding:10px;
+  box-shadow:var(--shadow-lg);position:relative;flex:none;
+}
+.phone-screen{
+  width:100%;height:100%;background:#fff;border-radius:35px;overflow:hidden;
+  display:flex;flex-direction:column;position:relative;
+}
+.notch{
+  position:absolute;top:9px;left:50%;transform:translateX(-50%);
+  width:96px;height:23px;background:#0F1B2A;border-radius:14px;z-index:5;
+}
+.ph-top{padding:34px 18px 10px;border-bottom:1px solid #F0F3F7;flex:none}
+.ph-hi{font-size:11.5px;color:var(--muted)}
+.ph-name{font-size:15px;font-weight:700;color:var(--ink)}
+.ph-body{flex:1;overflow:hidden;padding:14px 16px;position:relative}
+.slide{position:absolute;inset:14px 16px;opacity:0;transform:translateY(10px);transition:opacity .45s,transform .45s}
+.slide.on{opacity:1;transform:none}
+.ph-label{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:9px}
+.card{
+  background:#fff;border:1px solid var(--line);border-radius:13px;padding:11px 13px;
+  margin-bottom:9px;box-shadow:0 1px 3px rgba(15,27,42,.04);
+}
+.card-t{font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:5px}
+.card-m{font-size:10.5px;color:var(--muted);display:flex;gap:7px;align-items:center}
+.pill{font-size:9.5px;font-weight:700;padding:2.5px 8px;border-radius:20px}
+.pill-now{background:#E8F3FC;color:var(--brand)}
+.pill-late{background:#FEF2F2;color:#DC2626}
+.pill-done{background:#F0FDF4;color:var(--ok)}
+.bar{height:5px;background:#EEF2F6;border-radius:4px;overflow:hidden;margin-top:7px}
+.bar i{display:block;height:100%;background:var(--brand);border-radius:4px}
+.bub{max-width:78%;padding:8px 11px;border-radius:13px;font-size:11.5px;margin-bottom:7px;line-height:1.6}
+.bub.them{background:#F2F5F9;color:#374151;border-top-right-radius:4px}
+.bub.me{background:var(--brand);color:#fff;margin-inline-start:auto;border-top-left-radius:4px}
+.ph-nav{
+  flex:none;display:flex;justify-content:space-around;padding:10px 0 15px;
+  border-top:1px solid #F0F3F7;
+}
+.ph-nav i{width:19px;height:19px;border-radius:6px;background:#DFE5EC;display:block}
+.ph-nav i.act{background:var(--brand)}
+
+/* ── sections ────────────────────────────────────────── */
+section{padding:84px 0}
+.alt{background:var(--surface);border-block:1px solid var(--line)}
+.head{text-align:center;max-width:640px;margin:0 auto 52px}
+.head h2{font-size:clamp(25px,3.6vw,36px);margin:14px 0 0;font-weight:800;letter-spacing:-.3px}
+.head p{margin-top:14px;font-size:16.5px}
+
+.grid{display:grid;gap:20px}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+.feat{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:26px 24px;transition:transform .28s,box-shadow .28s,border-color .28s;
+}
+.feat:hover{transform:translateY(-4px);box-shadow:var(--shadow);border-color:#D3E3F1}
+.ico{
+  width:46px;height:46px;border-radius:13px;display:grid;place-items:center;
+  background:#E8F3FC;color:var(--brand);margin-bottom:16px;
+}
+.ico svg{width:22px;height:22px}
+.feat h3{font-size:17px;margin-bottom:8px}
+.feat p{font-size:14.5px;line-height:1.8}
+
+/* steps */
+.steps{counter-reset:s;display:grid;gap:22px;grid-template-columns:repeat(3,1fr)}
+.step{position:relative;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius);padding:28px 24px}
+.step::before{
+  counter-increment:s;content:counter(s);
+  position:absolute;top:-17px;inset-inline-start:24px;
+  width:36px;height:36px;border-radius:11px;background:var(--brand);color:#fff;
+  display:grid;place-items:center;font-weight:800;font-size:15px;
+  box-shadow:0 6px 16px rgba(33,133,199,.32);
+}
+.step h3{margin:14px 0 8px;font-size:16.5px}
+.step p{font-size:14.5px}
+
+/* security */
+.sec-wrap{
+  background:linear-gradient(135deg,var(--brand-dark),var(--brand) 55%,var(--brand-light));
+  border-radius:26px;padding:52px 44px;color:#fff;position:relative;overflow:hidden;
+}
+.sec-wrap::after{
+  content:'';position:absolute;inset-inline-end:-140px;bottom:-190px;
+  width:430px;height:430px;border-radius:50%;background:rgba(255,255,255,.07);
+}
+.sec-wrap h2{color:#fff;font-size:clamp(23px,3.2vw,32px);font-weight:800}
+.sec-wrap>p{color:rgba(255,255,255,.9);margin-top:14px;max-width:640px;font-size:16px}
+.sec-list{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:34px;position:relative}
+.sec-item{display:flex;gap:13px;align-items:flex-start;background:rgba(255,255,255,.11);border-radius:14px;padding:16px 18px}
+.tick{
+  width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.22);
+  display:grid;place-items:center;flex:none;margin-top:2px;
+}
+.tick svg{width:12px;height:12px}
+.sec-item b{display:block;color:#fff;font-size:14.5px;font-weight:600;margin-bottom:3px}
+.sec-item span{font-size:13px;color:rgba(255,255,255,.82);line-height:1.7}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.stat{text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px 16px}
+.stat b{display:block;font-size:30px;font-weight:800;color:var(--brand);letter-spacing:-.5px}
+.stat span{font-size:13.5px;color:var(--muted)}
+
+/* faq */
+.faq{max-width:760px;margin:0 auto;display:grid;gap:12px}
+.q{background:var(--surface);border:1px solid var(--line);border-radius:15px;overflow:hidden;transition:border-color .2s}
+.q[open]{border-color:#CFE6F8}
+.q summary{
+  cursor:pointer;padding:19px 22px;font-weight:600;color:var(--ink);font-size:15.5px;
+  display:flex;align-items:center;gap:12px;list-style:none;
+}
+.q summary::-webkit-details-marker{display:none}
+.chev{margin-inline-start:auto;color:var(--brand);transition:transform .25s;flex:none}
+.q[open] .chev{transform:rotate(180deg)}
+.q .a{padding:0 22px 20px;font-size:14.5px;line-height:1.9}
+
+/* cta */
+.cta{text-align:center}
+.cta h2{font-size:clamp(24px,3.4vw,34px);font-weight:800}
+.cta p{margin:14px auto 28px;max-width:520px;font-size:16px}
+
+/* footer */
+footer{background:var(--ink);color:#9FB0C4;padding:52px 0 30px;font-size:14px}
+.f-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:34px;margin-bottom:34px}
+footer .brand{color:#fff;margin-bottom:12px}
+footer h4{color:#fff;font-size:14.5px;margin-bottom:14px}
+footer a{display:block;padding:4px 0;color:#9FB0C4;transition:color .2s}
+footer a:hover{color:#fff}
+.f-bot{border-top:1px solid rgba(255,255,255,.1);padding-top:22px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:13px}
+
+/* reveal */
+.rv{opacity:0;transform:translateY(22px);transition:opacity .6s cubic-bezier(.2,.7,.3,1),transform .6s cubic-bezier(.2,.7,.3,1)}
+.rv.in{opacity:1;transform:none}
+
+@media(max-width:900px){
+  .hero-grid,.g3,.g2,.steps,.sec-list,.stats,.f-grid{grid-template-columns:1fr}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .nav-links{display:none}
+  .burger{display:block}
+  .nav-links.open{
+    display:flex;flex-direction:column;position:absolute;top:70px;inset-inline:0;
+    background:var(--surface);border-bottom:1px solid var(--line);padding:18px 22px;gap:14px;
+  }
+  .hero{padding:44px 0 62px}
+  .sec-wrap{padding:38px 26px}
+  section{padding:62px 0}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .rv{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top"><img src="/logo.png" alt=""> TaskUp</a>
+    <div class="nav-links" id="links">
+      <a href="#features">المزايا</a>
+      <a href="#how">كيف يعمل</a>
+      <a href="#security">الأمان</a>
+      <a href="#faq">أسئلة شائعة</a>
+    </div>
+    <button class="burger" id="burger" aria-label="القائمة"><span></span><span></span><span></span></button>
+    <a class="nav-cta" href="#get">ابدأ الآن</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow rv">مجاني بالكامل · عربي بالكامل</span>
+      <h1 class="rv">من المهمة<br>إلى <span class="hl">الإنجاز</span></h1>
+      <p class="lede rv">
+        نظّم مهامك ومشاريعك وملاحظاتك، وتابع فريقك، وتحدّث معهم — من مكان واحد.
+        صُمّم للعربية من أول سطر، لا مُترجماً عن غيرها.
+      </p>
+      <div class="hero-actions rv">
+        <a class="btn btn-primary" href="#get">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+          ابدأ الآن مجاناً
+        </a>
+        <a class="btn btn-ghost" href="#features">اكتشف المزايا</a>
+      </div>
+      <div class="hero-note rv"><span class="dot"></span> بلا إعلانات · بلا تتبّع · لا نبيع بياناتك</div>
+    </div>
+
+    <div class="phone-stage rv">
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="phone-screen">
+          <div class="ph-top">
+            <div class="ph-hi">صباح الخير</div>
+            <div class="ph-name">فريق TaskUp</div>
+          </div>
+          <div class="ph-body">
+            <div class="slide on" data-s="0">
+              <div class="ph-label">عليك الآن</div>
+              <div class="card"><div class="card-t">مراجعة عقد التوريد</div><div class="card-m"><span class="pill pill-now">اليوم</span> ٣ مشاركين</div></div>
+              <div class="card"><div class="card-t">إرسال التقرير الشهري</div><div class="card-m"><span class="pill pill-late">متأخرة</span> أمس</div></div>
+              <div class="card"><div class="card-t">اجتماع التخطيط</div><div class="card-m"><span class="pill pill-done">منجزة</span></div></div>
+            </div>
+            <div class="slide" data-s="1">
+              <div class="ph-label">المشاريع</div>
+              <div class="card"><div class="card-t">إطلاق المنتج</div><div class="card-m">١٢ مهمة · ٥ أعضاء</div><div class="bar"><i style="width:68%"></i></div></div>
+              <div class="card"><div class="card-t">الحملة التسويقية</div><div class="card-m">٧ مهام · ٣ أعضاء</div><div class="bar"><i style="width:35%"></i></div></div>
+            </div>
+            <div class="slide" data-s="2">
+              <div class="ph-label">المحادثات</div>
+              <div class="bub them">راجعت البنود المالية، الباقي جاهز ✅</div>
+              <div class="bub me">ممتاز، أرسل لي النسخة النهائية</div>
+              <div class="bub them">تمام، بعد ساعة إن شاء الله</div>
+            </div>
+            <div class="slide" data-s="3">
+              <div class="ph-label">الملاحظات</div>
+              <div class="card"><div class="card-t">أفكار الاجتماع</div><div class="card-m">مشفّرة · محدّثة الآن</div></div>
+              <div class="card"><div class="card-t">قائمة الموردين</div><div class="card-m">مشفّرة · أمس</div></div>
+            </div>
+          </div>
+          <div class="ph-nav"><i class="act"></i><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <div class="head rv">
+      <span class="eyebrow">كل ما تحتاجه</span>
+      <h2>أدواتٌ تعمل كما تتوقّع</h2>
+      <p>لا مزايا استعراضية — كل ما هنا مبنيّ لأنه يُستخدم فعلاً كل يوم.</p>
+    </div>
+    <div class="grid g3">
+      <div class="feat rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+        <h3>مهام مرتّبة تلقائياً</h3>
+        <p>ما عليك الآن، وما تأخّر، وما هو قادم — مفصولة من تلقاء نفسها. مع مسؤول لكل مهمة ومشاركين وتاريخ استحقاق وتعليقات.</p>
+      </div>
+      <div class="feat rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="2.5" stroke="currentColor" stroke-width="2.2"/><path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+        <h3>مشاريع بأعضاء وأدوار</h3>
+        <p>اجمع المهام في مشاريع، وأضف أعضاء بأدوار واضحة، وتابع نسبة الإنجاز في نظرة واحدة.</p>
+      </div>
+      <div class="feat rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg></div>
+        <h3>محادثات فورية</h3>
+        <p>تحدّث مع فريقك داخل التطبيق. الرسائل تصل لحظياً، ونصّها مشفّر في قاعدة البيانات.</p>
+      </div>
+      <div class="feat rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none"><path d="M4 4a2 2 0 012-2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+        <h3>ملاحظات مشفّرة</h3>
+        <p>دوّن ما تريد، واربطه بمهمة إن شئت. العنوان والنص مشفّران بمعيار AES-256-GCM، وسلة محذوفات تحميك من الحذف بالخطأ.</p>
+      </div>
+      <div class="feat rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7.5" stroke="currentColor" stroke-width="2.2"/><path d="M21 21l-4.6-4.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+        <h3>بحث يشمل كل شيء</h3>
+        <p>ابحث في المهام والمشاريع والأشخاص والمحادثات والملفات من حقل واحد — ولا تظهر لك إلا نتائج تملك صلاحية رؤيتها.</p>
+      </div>
+      <div class="feat rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 01-3.4 0" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+        <h3>إشعارات تتحكم بها</h3>
+        <p>تنبيهات المهام والمشاريع والمحادثات والمواعيد — وكل نوع منها تشغّله أو تطفئه بنفسك.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="how">
+  <div class="wrap">
+    <div class="head rv">
+      <span class="eyebrow">البداية</span>
+      <h2>ثلاث خطوات ولا كلمة مرور</h2>
+      <p>لا نطلب بريداً ولا كلمة سر. رقم جوالك يكفي.</p>
+    </div>
+    <div class="steps">
+      <div class="step rv"><h3>أدخل رقم جوالك</h3><p>نرسل لك رمز تحقق لمرة واحدة. لا كلمة مرور تُنشئها أو تنساها أو نخزّنها.</p></div>
+      <div class="step rv"><h3>أنشئ مهمتك الأولى</h3><p>عنوان وتاريخ ومسؤول — وانطلق. أضف مشروعاً أو ملاحظة متى احتجت.</p></div>
+      <div class="step rv"><h3>ادعُ فريقك</h3><p>ادعُ زملاءك برقم الجوال. من انضم لاحقاً تُضاف له مهامه تلقائياً.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="security">
+  <div class="wrap">
+    <div class="sec-wrap rv">
+      <span class="eyebrow" style="background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);color:#fff">الخصوصية</span>
+      <h2>بياناتك ليست منتجاً نبيعه</h2>
+      <p>معظم التطبيقات المجانية تربح من بياناتك. نحن لا نفعل — وهذه تفاصيل ما ننفّذه فعلاً، لا وعود عامة.</p>
+      <div class="sec-list">
+        <div class="sec-item">
+          <span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div><b>تشفير على مستوى الحقل</b><span>رقم جوالك ونصوص رسائلك وعنوان ملاحظاتك ومحتواها مشفّرة بمعيار AES-256-GCM — لا تُقرأ من قاعدة البيانات دون مفتاح منفصل.</span></div>
+        </div>
+        <div class="sec-item">
+          <span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div><b>اتصال مشفّر دائماً</b><span>كل اتصال بخوادمنا عبر TLS 1.2 أو أحدث، بلا استثناء.</span></div>
+        </div>
+        <div class="sec-item">
+          <span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div><b>جهات اتصالك لا تغادر جهازك</b><span>عند البحث عن زملائك تُحوَّل الأرقام إلى بصمات تجزئة على جهازك قبل إرسالها. الأرقام الفعلية لا تُخزَّن عندنا أبداً.</span></div>
+        </div>
+        <div class="sec-item">
+          <span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div><b>حذف الحساب بيدك</b><span>احذف حسابك من داخل التطبيق في أي وقت — تُخفى هويتك فوراً ويُعطّل الحساب نهائياً.</span></div>
+        </div>
+        <div class="sec-item">
+          <span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div><b>سجل رقابي على وصول فريقنا</b><span>أي اطّلاع من فريقنا على تفاصيل حساب أو مهمة يُسجَّل تلقائياً، ولا يمكن حذف السجل من لوحة التحكم.</span></div>
+        </div>
+        <div class="sec-item">
+          <span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div><b>حظر وإبلاغ</b><span>احظر أي شخص فتتوقف الرسائل في الاتجاهين، وأبلغ عن أي إساءة لتصل فريق المراجعة.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat rv"><b data-count="256">0</b><span>تشفير AES بت</span></div>
+      <div class="stat rv"><b data-count="0" data-suffix=" ﷼">0</b><span>التكلفة — مجاني بالكامل</span></div>
+      <div class="stat rv"><b data-count="2">0</b><span>لغتان: عربي وإنجليزي</span></div>
+      <div class="stat rv"><b data-count="0">0</b><span>مُعلنون يرون بياناتك</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="head rv"><span class="eyebrow">أسئلة شائعة</span><h2>ما قد يدور في بالك</h2></div>
+    <div class="faq">
+      <details class="q rv"><summary>هل التطبيق مجاني فعلاً؟<svg class="chev" viewBox="0 0 24 24" fill="none" width="17" height="17"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg></summary><div class="a">نعم، مجاني بالكامل حالياً — لا اشتراكات ولا مشتريات داخل التطبيق. إن أضفنا مزايا مدفوعة مستقبلاً فسنحدّث الشروط ونُعلمك قبل تفعيلها.</div></details>
+      <details class="q rv"><summary>كيف أسجّل دون كلمة مرور؟<svg class="chev" viewBox="0 0 24 24" fill="none" width="17" height="17"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg></summary><div class="a">تدخل رقم جوالك فنرسل رمز تحقق لمرة واحدة. لا توجد كلمة مرور تُنشئها أو نخزّنها — وهذا يزيل خطر تسريب كلمات المرور من الأساس.</div></details>
+      <details class="q rv"><summary>هل يمكنكم قراءة رسائلي وملاحظاتي؟<svg class="chev" viewBox="0 0 24 24" fill="none" width="17" height="17"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg></summary><div class="a">نصوص الرسائل والملاحظات مشفّرة على مستوى الحقل بـ AES-256-GCM، فمن يصل إلى قاعدة البيانات مباشرةً لا يرى محتواها. وأي اطّلاع من فريقنا لأغراض المراجعة يُسجَّل في سجل رقابي غير قابل للحذف. لسنا نزعم تشفيراً طرفياً كاملاً — نقول لك بدقة ما ننفّذه.</div></details>
+      <details class="q rv"><summary>ماذا يحدث عند حذف حسابي؟<svg class="chev" viewBox="0 0 24 24" fill="none" width="17" height="17"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg></summary><div class="a">يُستبدل اسمك وصورتك ورقم جوالك بقيم مجهولة فوراً، وتُلغى جلساتك، ويُعطّل الحساب نهائياً. لا نحذف السجلات المتشابكة مع مستخدمين آخرين — كرسالة أرسلتها لشخص أو مهمة يشارك فيها فريق — لأن حذفها يمسّ بياناتهم، لكنها لا تبقى منسوبة إليك.</div></details>
+      <details class="q rv"><summary>هل يعمل بالإنجليزية؟<svg class="chev" viewBox="0 0 24 24" fill="none" width="17" height="17"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg></summary><div class="a">نعم. التطبيق ثنائي اللغة بالكامل، وتبدّل اللغة من داخل الإعدادات في أي وقت. صُمّم للعربية أولاً بواجهة تدعم الاتجاه من اليمين لليسار بشكل صحيح.</div></details>
+    </div>
+  </div>
+</section>
+
+<section id="get" class="cta">
+  <div class="wrap rv">
+    <h2>جاهز للبدء؟</h2>
+    <p>التطبيق في مراحله الأخيرة قبل الإطلاق على المتاجر. اترك لنا رسالة لتكون من أوائل المستخدمين.</p>
+    <a class="btn btn-primary" href="mailto:support@taskupapp.net?subject=أرغب%20بتجربة%20TaskUp">
+      <svg viewBox="0 0 24 24" fill="none" width="18" height="18"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5" stroke="currentColor" stroke-width="2.1"/><path d="M3 7l9 6 9-6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>
+      راسلنا للانضمام
+    </a>
+    <div class="hero-note" style="justify-content:center"><span class="dot"></span> قريباً على App Store و Google Play</div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="f-grid">
+      <div>
+        <a class="brand" href="#top"><img src="/logo.png" alt=""> TaskUp</a>
+        <p style="max-width:330px;line-height:1.9">تطبيق عربي لإدارة المهام والمشاريع والفرق. صُمّم ليكون سريعاً وواضحاً ومحترماً لخصوصيتك.</p>
+      </div>
+      <div>
+        <h4>التطبيق</h4>
+        <a href="#features">المزايا</a><a href="#how">كيف يعمل</a><a href="#security">الأمان والخصوصية</a><a href="#faq">أسئلة شائعة</a>
+      </div>
+      <div>
+        <h4>تواصل</h4>
+        <a href="mailto:support@taskupapp.net">support@taskupapp.net</a>
+        <a href="#" style="pointer-events:none;opacity:.55">الرياض، المملكة العربية السعودية</a>
+      </div>
+    </div>
+    <div class="f-bot">
+      <span>© <span id="yr">2026</span> TaskUp — جميع الحقوق محفوظة</span>
+      <span>صُنع في المملكة العربية السعودية 🇸🇦</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// sticky nav shadow
+const nav = document.getElementById('nav');
+addEventListener('scroll', () => nav.classList.toggle('stuck', scrollY > 8), {passive:true});
+
+// mobile menu
+const burger = document.getElementById('burger'), links = document.getElementById('links');
+burger.addEventListener('click', () => links.classList.toggle('open'));
+links.addEventListener('click', e => { if (e.target.tagName === 'A') links.classList.remove('open'); });
+
+// reveal on scroll
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+}, {threshold:.12, rootMargin:'0px 0px -40px'});
+document.querySelectorAll('.rv').forEach((el,i) => { el.style.transitionDelay = (i % 4) * 70 + 'ms'; io.observe(el); });
+
+// phone screens cycle
+const slides = [...document.querySelectorAll('.slide')], dots = [...document.querySelectorAll('.ph-nav i')];
+let s = 0;
+setInterval(() => {
+  slides[s].classList.remove('on'); dots[s].classList.remove('act');
+  s = (s + 1) % slides.length;
+  slides[s].classList.add('on'); dots[s].classList.add('act');
+}, 3200);
+
+// count-up stats, once visible
+const nf = new Intl.NumberFormat('ar-EG');
+const cio = new IntersectionObserver((entries) => {
+  entries.forEach(en => {
+    if (!en.isIntersecting) return;
+    const el = en.target, target = +el.dataset.count, suffix = el.dataset.suffix || '';
+    const t0 = performance.now(), dur = 1100;
+    const tick = (now) => {
+      const p = Math.min((now - t0) / dur, 1);
+      el.textContent = nf.format(Math.round(target * (1 - Math.pow(1 - p, 3)))) + suffix;
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    cio.unobserve(el);
+  });
+}, {threshold:.5});
+document.querySelectorAll('[data-count]').forEach(el => cio.observe(el));
+
+document.getElementById('yr').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>
