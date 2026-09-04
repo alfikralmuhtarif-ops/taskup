@@ -25,6 +25,18 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
+  /* iOS silently enlarges text in portrait when it decides a block is too wide.
+     On a layout drawn at fixed pixel sizes that reads as "everything is bigger
+     than the screen", so pin it off. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* In a native shell the page itself must not scroll or bounce — every scrollable
+   region inside the app manages its own overflow. Without this, dragging anywhere
+   drags the whole app and reveals the background behind it. */
+body {
+  overscroll-behavior: none;
 }
 
 body {

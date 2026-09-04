@@ -7,8 +7,12 @@ const config: CapacitorConfig = {
   // must run before every `npx cap sync`.
   webDir: 'dist',
   ios: {
-    // Arabic is the default language and the whole UI is RTL-first.
-    contentInset: 'automatic',
+    // 'never' so the webview really goes edge to edge and the CSS
+    // env(safe-area-inset-*) padding in App.tsx is the single thing deciding where
+    // content sits. With the default 'automatic', iOS adds its own inset on top and
+    // the two fight — content ends up either double-padded or, as seen on device,
+    // tucked under the Dynamic Island.
+    contentInset: 'never',
   },
   server: {
     // iOS serves the bundle from capacitor://localhost and Android from
