@@ -886,7 +886,10 @@ function PhoneScreen({ onNext, onBack, onNotRegistered, lang, mode }: { onNext: 
           <div style={{ padding: '14px', border: '1.5px solid #E5E7EB', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 6, minWidth: 90, color: '#374151', fontSize: 14, fontWeight: 500, fontFamily: 'Inter' }}>
             {isEn ? '🌍 ' : '🇸🇦 '}{countryCode}
           </div>
-          <input data-ltr value={phone} onChange={e => setPhone(e.target.value)} placeholder={tr.phonePlaceholder}
+          {/* Was unfiltered: it accepted letters, spaces and a re-typed country code
+              straight into the request. normalizeLocalPhone is the same guard the
+              admin panel and the change-phone sheet already use. */}
+          <input data-ltr value={phone} onChange={e => setPhone(normalizeLocalPhone(e.target.value, countryCode))} placeholder={tr.phonePlaceholder}
             style={{ flex: 1, padding: '14px 16px', border: '1.5px solid #E5E7EB', borderRadius: 12, fontSize: 15, fontFamily: 'Inter', outline: 'none', color: '#111827' }} />
         </div>
         <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center' }}>{tr.smsnote}</p>
@@ -934,7 +937,10 @@ function OTPScreen({ requestId, onNext, onBack, lang, mode }: {
   const refs = Array.from({ length: 6 }, () => useRef<HTMLInputElement>(null))
   const tr = t[lang]
   const isRtl = lang === 'ar'
-  const handleChange = (i: number, val: string) => {
+  const handleChange = (i: number, raw: string) => {
+    // An Arabic-Indic digit failed this test outright and was rejected, so anyone
+    // typing the code on an Arabic keyboard could not sign in at all.
+    const val = toWesternDigits(raw)
     if (!/^\d?$/.test(val)) return
     const next = [...otp]; next[i] = val; setOtp(next)
     if (val && i < 5) refs[i + 1].current?.focus()
@@ -3353,12 +3359,23 @@ function ProfileRow({ icon, iconBg, iconColor = '#2185C7', label, value, badge, 
   )
 }
 
+// An Arabic keyboard produces Arabic-Indic digits (٠-٩) or Persian ones (۰-۹), and
+// JavaScript's \d matches neither — so every `replace(/\D/g, '')` in this file silently
+// deleted them. On an Arabic-first app that meant a user typing their phone number or
+// verification code the natural way ended up with an empty field and no explanation.
+// Map them to ASCII before any digit filtering runs.
+function toWesternDigits(raw: string): string {
+  return raw
+    .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0))
+}
+
 // Strips a country code the user re-typed inside the local-number field (e.g. pasting
 // "966501234567" or "0501234567" while +966 is already selected), which would otherwise
 // be sent as a double-prefixed, malformed number. Same normalization the admin panel's
 // login field needed after that exact bug created a ghost account.
 function normalizeLocalPhone(raw: string, countryCode: string): string {
-  const digits = raw.replace(/\D/g, '')
+  const digits = toWesternDigits(raw).replace(/\D/g, '')
   const cc = countryCode.replace(/\D/g, '')
   let local = digits
   if (cc && local.startsWith(cc)) local = local.slice(cc.length)
@@ -3467,7 +3484,7 @@ function ChangePhoneSheet({ lang, onClose, onChanged }: { lang: Lang; onClose: (
             </div>
             <div>
               <label style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600, display: 'block', marginBottom: 6 }}>{isRtl ? 'رمز التحقق' : 'Verification Code'}</label>
-              <input value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="• • • • • •" data-ltr inputMode="numeric"
+              <input value={otp} onChange={e => setOtp(toWesternDigits(e.target.value).replace(/\D/g, '').slice(0, 6))} placeholder="• • • • • •" data-ltr inputMode="numeric"
                 autoFocus style={{ width: '100%', padding: '14px', border: '1.5px solid #E5E7EB', borderRadius: 12, fontSize: 20, fontFamily: 'Inter', textAlign: 'center', letterSpacing: 8, color: '#111827', outline: 'none', background: '#fff' }} />
             </div>
             {error && (
@@ -3944,7 +3961,7 @@ function NewChatSheet({ lang, existingPersonIds, onSelect, onStartWithPhone, onC
                 </div>
                 <input
                   value={phoneNum}
-                  onChange={e => setPhoneNum(e.target.value.replace(/\D/g, ''))}
+                  onChange={e => setPhoneNum(normalizeLocalPhone(e.target.value, countryCode))}
                   placeholder={isRtl ? '5XXXXXXXX' : '5XXXXXXXX'}
                   data-ltr
                   inputMode="numeric"
