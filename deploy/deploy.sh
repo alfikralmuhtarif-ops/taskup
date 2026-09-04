@@ -103,11 +103,15 @@ docker compose up -d --build db migrate api proxy
 ok "containers up"
 
 c "Waiting for the API to answer"
-for i in $(seq 1 60); do
-  code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1/tasks" || true)
+for i in $(seq 1 100); do
+  # The Host header matters: appsettings.Production.json restricts AllowedHosts to
+  # the real domain, so ASP.NET's host filtering answers 400 to a request addressed
+  # to 127.0.0.1 — which looked like "the API never came up" when it was in fact
+  # already serving correctly.
+  code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 -H "Host: $API_DOMAIN" "http://127.0.0.1/tasks" || true)
   # 401 is success here: the endpoint requires auth, so the request reached the API.
   if [ "$code" = "401" ]; then ok "API responding through nginx (HTTP 401 as expected)"; break; fi
-  [ "$i" = "60" ] && { docker compose logs --tail 40 api; no "API did not come up — logs above."; }
+  [ "$i" = "100" ] && { docker compose logs --tail 40 api; no "API did not come up — logs above."; }
   sleep 3
 done
 
