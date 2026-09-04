@@ -9,6 +9,7 @@ import {
 } from './lib/api'
 import { startRealtime, stopRealtime, subscribe } from './lib/realtime'
 import { Capacitor } from '@capacitor/core'
+import { Share } from '@capacitor/share'
 
 // True inside the iOS/Android shell. The layout below was built as a phone *mockup*
 // for a desktop browser — a 390x844 rounded card with a fake 9:41 status bar, floating
@@ -237,18 +238,6 @@ const LightbulbIcon = ({ size = 18 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <path d="M9 18h6M10 21h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
     <path d="M12 2.5a6.5 6.5 0 00-3.8 11.8c.6.5 1 1.2 1 2v.7h5.6v-.7c0-.8.4-1.5 1-2A6.5 6.5 0 0012 2.5z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
-  </svg>
-)
-const XLogoIcon = ({ size = 16 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M4 4l16 16M20 4L4 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-)
-const TelegramIcon = ({ size = 16 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M21 4L3 11.5l6 2M21 4l-3 16-6-4.5M21 4L9 13.5m0 0v4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
-)
-const BriefcaseIcon = ({ size = 16 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <rect x="3" y="7.5" width="18" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.8"/>
-    <path d="M8.5 7.5V6a2 2 0 012-2h3a2 2 0 012 2v1.5M3 12.5h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
   </svg>
 )
 const OutboxIcon = ({ size = 16 }: IconProps) => (
@@ -3150,14 +3139,33 @@ function ShareAppScreen({ onBack, lang }: { onBack: () => void; lang: Lang }) {
     setTimeout(() => setCopied(false), 2500)
   }
 
-  const platforms = [
-    { icon: <ChatsIcon size={22} />, label: 'WhatsApp', color: '#25D366', bg: '#F0FFF4', action: () => window.open(`https://wa.me/?text=${encodeURIComponent(`${shareMessage} ${link}`)}`, '_blank') },
-    { icon: <TelegramIcon size={22} />, label: 'Telegram', color: '#0088CC', bg: '#EBF5FF', action: () => window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareMessage)}`, '_blank') },
-    { icon: <MailIcon size={22} />, label: isRtl ? 'البريد' : 'Email', color: '#EA4335', bg: '#FEF2F2', action: () => { window.location.href = `mailto:?subject=${encodeURIComponent('TaskUp')}&body=${encodeURIComponent(`${shareMessage}\n${link}`)}` } },
-    { icon: <XLogoIcon size={20} />, label: 'X / Twitter', color: '#000', bg: '#F5F7FA', action: () => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage)}&url=${encodeURIComponent(link)}`, '_blank') },
-    { icon: <BriefcaseIcon size={22} />, label: 'LinkedIn', color: '#0A66C2', bg: '#EBF5FF', action: () => window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(link)}`, '_blank') },
-    { icon: <ClipboardIcon size={22} />, label: isRtl ? 'نسخ الرابط' : 'Copy Link', color: '#6B7280', bg: '#F5F7FA', action: copyLink },
-  ]
+  // One button, the operating system's own share sheet — instead of a hardcoded grid
+  // of apps that guessed wrong (it offered Telegram and LinkedIn while the OS sheet
+  // lists whatever the person actually has installed, in their own order).
+  const [shareError, setShareError] = useState<string | null>(null)
+
+  const shareApp = async () => {
+    setShareError(null)
+    const payload = { title: 'TaskUp', text: shareMessage, url: link }
+    try {
+      if (IS_NATIVE) {
+        await Share.share({ ...payload, dialogTitle: isRtl ? 'مشاركة TaskUp' : 'Share TaskUp' })
+        return
+      }
+      // Browsers: the Web Share API where it exists (mobile Safari/Chrome), otherwise
+      // there is no sheet to open, so copying the link is the honest fallback.
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share(payload)
+        return
+      }
+      await copyLink()
+    } catch (e) {
+      // Dismissing the sheet rejects; that is not an error worth showing.
+      const message = e instanceof Error ? e.message : String(e)
+      if (/cancel|abort|dismiss/i.test(message)) return
+      setShareError(message)
+    }
+  }
 
   const reasons = [
     { icon: <BoltIcon size={18} />, text: isRtl ? 'تنظيم المهام بسهولة' : 'Organize tasks effortlessly' },
@@ -3217,18 +3225,18 @@ function ShareAppScreen({ onBack, lang }: { onBack: () => void; lang: Lang }) {
           </div>
         </div>
 
-        {/* Share via */}
-        <div style={{ margin: '12px 16px 0', background: '#fff', borderRadius: 14, padding: '16px', border: '1px solid #F0F0F0' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 14 }}>{isRtl ? 'مشاركة عبر' : 'Share via'}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-            {platforms.map(p => (
-              <button key={p.label} onClick={p.action}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '14px 8px', borderRadius: 14, background: p.bg, border: 'none', cursor: 'pointer' }}>
-                <span style={{ color: p.color, display: 'flex' }}>{p.icon}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: p.color, fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter', textAlign: 'center' }}>{p.label}</span>
-              </button>
-            ))}
-          </div>
+        {/* Share — hands off to the OS sheet */}
+        <div style={{ margin: '12px 16px 0' }}>
+          <button onClick={shareApp}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: '#2185C7', color: '#fff', border: 'none', borderRadius: 14, padding: '16px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter', boxShadow: '0 4px 14px rgba(33,133,199,0.3)' }}>
+            <ShareIcon size={20} />
+            {isRtl ? 'مشاركة التطبيق' : 'Share the app'}
+          </button>
+          {shareError && (
+            <div style={{ marginTop: 10, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '11px 13px', color: '#B91C1C', fontSize: 13 }}>
+              {isRtl ? 'تعذّرت المشاركة' : 'Sharing failed'} — {shareError}
+            </div>
+          )}
         </div>
 
         {/* QR-style prompt */}
