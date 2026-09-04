@@ -23,7 +23,13 @@ docker compose exec -T db pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format
   > "$DEST/db-$STAMP.dump"
 
 echo "[$(date -Is)] archiving uploads"
-docker run --rm -v taskup_uploads:/data:ro -v "$DEST":/out alpine \
+# Compose prefixes volumes with the project name, which defaults to the directory
+# name — hardcoding "taskup_uploads" silently backs up nothing if the checkout sits
+# somewhere else. Ask compose for the real name instead.
+UPLOADS_VOL=$(docker compose ps -q api | head -1 | xargs -r docker inspect \
+  --format '{{range .Mounts}}{{if eq .Destination "/app/uploads"}}{{.Name}}{{end}}{{end}}')
+[ -n "$UPLOADS_VOL" ] || { echo "could not resolve the uploads volume" >&2; exit 1; }
+docker run --rm -v "$UPLOADS_VOL":/data:ro -v "$DEST":/out alpine \
   tar czf "/out/uploads-$STAMP.tar.gz" -C /data .
 
 find "$DEST" -type f -mtime "+$KEEP_DAYS" -delete

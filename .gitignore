@@ -34,3 +34,4 @@ backend/src/TaskUp.Api/uploads/
 # ── Server-side deployment state (created on the VPS, never committed) ────────
 deploy/letsencrypt/
 deploy/certbot-webroot/
+deploy/nginx/active/

@@ -57,22 +57,39 @@ services:
     # No `ports:` on purpose — nginx is the only way in, which is what lets
     # Program.cs clear KnownProxies safely.
 
-  web:
-    build:
-      context: .
-      dockerfile: deploy/Dockerfile.web
-      args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.taskupapp.net}
+  # Terminates TLS and is the only thing published to the internet. Its config is a
+  # bind mount rather than baked into an image, so deploy.sh can swap the bootstrap
+  # (HTTP-only) config for the TLS one the moment a certificate exists, without a
+  # rebuild. Static SPA files come from the optional `web` build below.
+  proxy:
+    image: nginx:1.27-alpine
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     volumes:
+      - ./deploy/nginx/active:/etc/nginx/conf.d:ro
       - ./deploy/letsencrypt:/etc/letsencrypt:ro
-      - ./deploy/certbot-webroot:/var/www/certbot:ro
+      - ./deploy/certbot-webroot:/var/www/certbot
+      - spa:/usr/share/nginx/html
     depends_on:
       - api
+
+  # Frontends are not part of a backend-only deploy. Build them with:
+  #   docker compose --profile frontend up -d --build web
+  # which compiles both SPAs into the shared `spa` volume the proxy serves from.
+  web:
+    profiles: ["frontend"]
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.taskupapp.net}
+    volumes:
+      - spa:/out
+    command: sh -c "cp -r /usr/share/nginx/html/. /out/ && echo 'SPA bundles copied to the shared volume'"
 
 volumes:
   pgdata:
   uploads:
+  spa:
