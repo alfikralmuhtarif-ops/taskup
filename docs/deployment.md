@@ -1,7 +1,7 @@
 # TaskUp — Deployment
 
 **Domain:** `taskupapp.net` (registered 2026-08-29)
-**Status:** domain secured; hosting provider still not chosen. Everything below that depends only on the domain is done; everything that depends on a provider is listed as an open step.
+**Status:** LIVE. The backend runs at https://api.taskupapp.net on a Hostinger VPS (130.94.120.128, Ubuntu 24.04, 1 vCPU, 2GB RAM + 3.9GB swap), deployed 2026-09-04 with `deploy/deploy.sh`. Everything below that depends only on the domain is done; everything that depends on a provider is listed as an open step.
 
 ---
 
@@ -88,3 +88,42 @@ Forgetting `vite build` before `cap sync` ships the *previous* web build inside 
 ## 5. Contact addresses used in published text
 
 The app's in-app legal text and the root `PRIVACY_POLICY.md` / `TERMS_OF_SERVICE.md` all now point to a single mailbox, **`support@taskupapp.net`**, which needs to exist before the app is submitted to either store. The in-app text previously used `legal@taskup.app`, `privacy@taskup.app` and `support@taskup.app` — a domain we do not own — and a placeholder phone number `920XXXXXXX`, which has been removed rather than shipped as a fake contact in a privacy policy. Add a real support phone number back to `src/i18n.ts` (Privacy §12, both languages) when one exists.
+
+
+---
+
+## 6. What the first real deploy taught us
+
+Every Dockerfile and script here was unbuilt until the first production run. Five
+things broke, all fixed and committed:
+
+| Failure | Cause |
+|---|---|
+| `adduser: exit code 127` | The .NET 10 runtime image ships `useradd` only, and already provides a non-root user as `$APP_UID`. |
+| `libgssapi_krb5.so.2: cannot open shared object file` | Npgsql probes for GSSAPI on connect; the trimmed runtime image omits it. `libgssapi-krb5-2` is now installed in the runtime stage. |
+| "API did not come up" while it was serving fine | The health probe used `Host: 127.0.0.1`, which `AllowedHosts` rejects with 400. It now sends the real host. |
+| ACME challenge 403 | Certbot created the webroot directories with permissions nginx's unprivileged worker could not traverse. |
+| No `Strict-Transport-Security` header | See below — the worst of the five, because nothing failed loudly. |
+
+**The forwarded-headers trap.** `ForwardedHeadersOptions` was configured with
+`KnownNetworks` and `KnownProxies` cleared, on the belief that empty means "trust
+any proxy". It means the opposite: the middleware checks the peer against those
+collections, finds both empty, and ignores the forwarded headers entirely. The
+consequences were all silent — the app never saw a request as HTTPS, so `UseHsts`
+emitted nothing, `UseHttpsRedirection` disabled itself for want of an HTTPS port,
+and every client IP collapsed to the proxy's, making the per-IP OTP rate limit
+global instead of per-caller. nginx's own `return 301` masked the missing app-level
+redirect, so the only visible symptom was one absent response header. Docker's
+private ranges are now listed explicitly.
+
+## 7. Registration is not yet possible in production
+
+The deploy works, but no one can create an account:
+
+- `ISmsSender` is still `LoggingSmsSender`, which writes the code to the log
+  instead of sending it.
+- Production logging is set to `Warning`, and that line is `Information`, so the
+  code does not even reach the log.
+- Only a hash of the code is stored, so it cannot be recovered from the database.
+
+Wiring a real SMS provider is the single remaining blocker to a usable service.
