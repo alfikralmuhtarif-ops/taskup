@@ -9,6 +9,7 @@ using TaskUp.Api.Filters;
 using TaskUp.Api.Middleware;
 using TaskUp.Api.Services;
 using System.Net;
+using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.HttpOverrides;
 using TaskUp.Application.Abstractions;
 using TaskUp.Application.Admin;
@@ -254,6 +255,18 @@ foreach (var (prefix, length) in new[] { ("10.0.0.0", 8), ("172.16.0.0", 12), ("
     forwardedOptions.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse(prefix), length));
 }
 app.UseForwardedHeaders(forwardedOptions);
+
+// A fixed OTP code makes every account reachable by anyone who knows the phone
+// number. It is a deliberate stopgap while no SMS provider exists, but it must not
+// be able to survive quietly into real use — so say so loudly on every boot, at
+// Warning level, which is what production logging actually keeps.
+var fixedOtp = app.Services.GetRequiredService<IOptions<OtpDevOptions>>().Value.FixedCode;
+if (!string.IsNullOrEmpty(fixedOtp))
+{
+    app.Logger.LogWarning(
+        "AUTH BYPASS ACTIVE: every OTP is fixed to \"{Code}\". Any caller who knows a phone number can sign in as its owner. Clear Otp__FixedCode before real users exist.",
+        fixedOtp);
+}
 
 app.UseExceptionHandler();
 
