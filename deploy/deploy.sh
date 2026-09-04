@@ -36,7 +36,11 @@ ok "${FREE_GB}GB disk free"
 
 RAM_MB=$(free -m | awk '/^Mem:/{print $2}')
 ok "${RAM_MB}MB RAM"
-if [ "$RAM_MB" -lt 3500 ] && [ ! -f /swapfile ]; then
+SWAP_MB=$(free -m | awk '/^Swap:/{print $2}')
+ok "${SWAP_MB}MB swap"
+# Some providers ship a swap partition rather than /swapfile, so test the actual
+# total: keying off the file alone would stack a second swapfile on top of it.
+if [ "$RAM_MB" -lt 3500 ] && [ "$SWAP_MB" -lt 2000 ]; then
   # A .NET build on a 2GB box is killed by the OOM reaper partway through, which
   # looks like a mysterious "exit code 137" rather than an out-of-memory error.
   c "Adding 2GB of swap (build headroom)"
