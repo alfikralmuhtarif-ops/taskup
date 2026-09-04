@@ -94,7 +94,13 @@ fi
 
 # ── 4. Build and start the backend behind HTTP-only nginx ────────────────────
 c "Selecting the bootstrap (HTTP-only) nginx config"
-mkdir -p deploy/nginx/active deploy/certbot-webroot deploy/letsencrypt
+mkdir -p deploy/nginx/active deploy/letsencrypt
+# Pre-create the challenge directory world-traversable. Left to certbot, it creates
+# these itself with permissions nginx's unprivileged worker cannot traverse, and the
+# ACME check then fails with 403 even though the file is there — which is exactly
+# what happened on the first real run.
+mkdir -p deploy/certbot-webroot/.well-known/acme-challenge
+chmod -R a+rX deploy/certbot-webroot
 cp deploy/nginx/available/bootstrap.conf deploy/nginx/active/default.conf
 ok "nginx will start without needing a certificate"
 
@@ -133,6 +139,7 @@ else
   [ -n "$CERT_EMAIL" ] || no "Set CERT_EMAIL first, e.g.  sudo CERT_EMAIL=you@example.com bash deploy/deploy.sh
     Issuing a certificate accepts the Let's Encrypt Subscriber Agreement
     (https://letsencrypt.org/repository/) in your name — that is why this is not defaulted."
+  chmod -R a+rX deploy/certbot-webroot
   c "Requesting a certificate for $API_DOMAIN"
   docker run --rm \
     -v "$PROJECT_DIR/deploy/letsencrypt:/etc/letsencrypt" \
