@@ -5035,7 +5035,11 @@ function NotesWorkspace({ lang, currentUserId, onExit }: { lang: Lang; currentUs
   const [notes, setNotes] = useState<BackendNoteListItem[] | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<BackendNoteDetail | null>(null)
-  const [mobilePane, setMobilePane] = useState<'sidebar' | 'list' | 'editor'>('editor')
+  // The list IS the main Notes page on a phone. It used to open straight into the
+  // editor of a freshly created note, which left no visible way back to the app and
+  // no visible way to add another note — both were buried in a sidebar pane you had
+  // to know to swipe back to. 'sidebar' is now a wide-screen-only concept.
+  const [mobilePane, setMobilePane] = useState<'list' | 'editor'>('list')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -5061,15 +5065,10 @@ function NotesWorkspace({ lang, currentUserId, onExit }: { lang: Lang; currentUs
     return () => clearTimeout(handle)
   }, [currentUserId, filter, searchQuery, retryKey])
 
-  // The Notes "home" page is note creation itself — landing here starts a fresh note
-  // immediately instead of an empty "pick a note" placeholder (requested by the user).
-  const startedInitialNote = useRef(false)
-  useEffect(() => {
-    if (!currentUserId || startedInitialNote.current) return
-    startedInitialNote.current = true
-    handleNewNote()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId])
+  // Note creation is now an explicit "+" on the list, not something that happens on
+  // arrival: auto-creating on mount wrote a brand-new empty note to the database every
+  // single time Notes was opened, so simply looking at your notes littered the list
+  // with untitled blanks.
 
   useEffect(() => {
     if (!selectedId) { setDetail(null); return }
@@ -5190,14 +5189,44 @@ function NotesWorkspace({ lang, currentUserId, onExit }: { lang: Lang; currentUs
 
   const renderList = () => (
     <div style={{ width: isWide ? 320 : '100%', height: '100%', borderInlineEnd: isWide ? '1px solid #E5E7EB' : 'none', display: 'flex', flexDirection: 'column', background: '#fff', flexShrink: 0 }}>
+      {/* On a phone this pane is the whole Notes screen, so it carries the title, the
+          way out of Notes, the add button and the filters that live in the sidebar on
+          a wide screen. */}
+      {!isWide && (
+        <div style={{ padding: '14px 16px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <BackButton onBack={onExit} lang={lang} />
+          <span style={{ flex: 1, fontSize: 17, fontWeight: 700, color: '#111827', fontFamily }}>{tr.notesTitle}</span>
+          <button onClick={handleNewNote} disabled={creatingNote}
+            title={tr.newNote}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#2185C7', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: creatingNote ? 'default' : 'pointer', opacity: creatingNote ? 0.6 : 1, fontFamily }}>
+            <span style={{ fontSize: 15, fontWeight: 400 }}>+</span> {tr.newNote}
+          </button>
+        </div>
+      )}
+
       <div style={{ padding: '16px', borderBottom: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', gap: 8 }}>
-        {!isWide && <BackButton onBack={() => setMobilePane('sidebar')} lang={lang} />}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#F5F7FA', borderRadius: 10, padding: '8px 12px', gap: 8 }}>
           <span style={{ color: '#9CA3AF', display: 'flex' }}><SearchIcon size={15} /></span>
           <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={tr.searchNotes}
             style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontFamily, color: '#111827' }} />
         </div>
       </div>
+
+      {/* All / Trash — the sidebar's filters, inline, since the sidebar is unreachable
+          on a phone now that back exits Notes instead of revealing it. */}
+      {!isWide && (
+        <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px' }}>
+          {([{ key: 'all', label: tr.allNotes }, { key: 'trash', label: tr.trash }] as const).map(f => (
+            <button key={f.key} onClick={() => { setFilter({ type: f.key }); setSelectedId(null) }}
+              style={{ padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily,
+                border: `1.5px solid ${filter.type === f.key ? '#2185C7' : '#E5E7EB'}`,
+                background: filter.type === f.key ? '#EBF5FF' : '#fff',
+                color: filter.type === f.key ? '#2185C7' : '#6B7280' }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {listError ? (
           <div style={{ padding: '48px 24px', textAlign: 'center', color: '#9CA3AF' }}>
@@ -5283,7 +5312,15 @@ function NotesWorkspace({ lang, currentUserId, onExit }: { lang: Lang; currentUs
   }
 
   return (
-    <div dir={isRtl ? 'rtl' : 'ltr'} style={{ width: '100vw', height: '100vh', display: 'flex', background: '#fff', fontFamily, overflow: 'hidden' }}>
+    // Notes returns before the app's frame wrapper, so it has to apply the device
+    // safe areas itself — otherwise its header sits under the Dynamic Island and the
+    // last list row under the home indicator, exactly as the main app did before.
+    <div dir={isRtl ? 'rtl' : 'ltr'} style={{
+      width: '100vw', height: IS_NATIVE ? '100dvh' : '100vh',
+      paddingTop: IS_NATIVE ? 'env(safe-area-inset-top)' : 0,
+      paddingBottom: IS_NATIVE ? 'env(safe-area-inset-bottom)' : 0,
+      display: 'flex', background: '#fff', fontFamily, overflow: 'hidden',
+    }}>
       {isWide ? (
         <>
           {renderSidebar()}
@@ -5291,7 +5328,7 @@ function NotesWorkspace({ lang, currentUserId, onExit }: { lang: Lang; currentUs
           {renderEditor()}
         </>
       ) : (
-        mobilePane === 'sidebar' ? renderSidebar() : mobilePane === 'list' ? renderList() : renderEditor()
+        mobilePane === 'list' ? renderList() : renderEditor()
       )}
     </div>
   )
