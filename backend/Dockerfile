@@ -35,6 +35,14 @@ ENTRYPOINT ["sh", "-c", "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f /migration
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
+# Npgsql probes for GSSAPI/Kerberos when it opens a connection, and the trimmed
+# runtime image does not ship it — the API crashed on startup with
+# "libgssapi_krb5.so.2: cannot open shared object file". Installed as root, before
+# dropping to $APP_UID below.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/publish .
 
 # The image already ships a non-root user `app` (uid 1654) and exposes it as
