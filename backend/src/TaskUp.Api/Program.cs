@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using TaskUp.Api.Filters;
 using TaskUp.Api.Middleware;
 using TaskUp.Api.Services;
+using System.Net;
 using Microsoft.AspNetCore.HttpOverrides;
 using TaskUp.Application.Abstractions;
 using TaskUp.Application.Admin;
@@ -230,17 +231,29 @@ var app = builder.Build();
 // HTTP, and the API is unreachable behind an infinite redirect loop. It also restores
 // the real client IP, which the per-IP OTP rate limiter depends on to be worth anything.
 //
-// KnownNetworks/KnownProxies are cleared deliberately: the defaults trust only
-// loopback, and the reverse proxy is a separate container with an arbitrary private
-// IP. That is safe here only because the API port is never published to the host —
-// nginx is the sole route in (see docker-compose.yml). If the API is ever exposed
-// directly, replace this with an explicit KnownProxies entry.
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+// The proxy is a separate container on a Docker bridge network, so its address is
+// in one of the private ranges below. Those ranges must be listed explicitly:
+// CLEARING KnownNetworks/KnownProxies DOES NOT MEAN "TRUST EVERYTHING" — the
+// middleware checks the peer against these collections and, finding both empty,
+// ignores the forwarded headers entirely. That silently cost us X-Forwarded-Proto
+// on the first production deploy: the app never saw a request as HTTPS, so it
+// emitted no HSTS header and every client IP collapsed to the proxy's, making the
+// per-IP OTP rate limit effectively global.
+//
+// Listing private ranges is safe because the API port is never published to the
+// host — nginx is the only route in (see docker-compose.yml), so nothing outside
+// can reach Kestrel to spoof these headers in the first place.
+var forwardedOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
-    KnownNetworks = { },
-    KnownProxies = { },
-});
+};
+forwardedOptions.KnownNetworks.Clear();
+forwardedOptions.KnownProxies.Clear();
+foreach (var (prefix, length) in new[] { ("10.0.0.0", 8), ("172.16.0.0", 12), ("192.168.0.0", 16), ("127.0.0.0", 8) })
+{
+    forwardedOptions.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse(prefix), length));
+}
+app.UseForwardedHeaders(forwardedOptions);
 
 app.UseExceptionHandler();
 
