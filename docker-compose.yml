@@ -68,9 +68,14 @@ services:
   proxy:
     image: nginx:1.27-alpine
     restart: unless-stopped
+    # This host already runs an aaPanel-managed nginx on 80/443 for another site
+    # (3s4all.com), so binding those here fails with "address already in use" and
+    # leaves the proxy crash-looping. We bind high ports instead and let the host
+    # nginx forward the taskupapp names to us. Override if this server ever becomes
+    # ours alone.
     ports:
-      - "80:80"
-      - "443:443"
+      - "${PROXY_HTTP_PORT:-8080}:80"
+      - "${PROXY_HTTPS_PORT:-8443}:443"
     volumes:
       - ./deploy/nginx/active:/etc/nginx/conf.d:ro
       - ./deploy/letsencrypt:/etc/letsencrypt:ro
