@@ -269,7 +269,12 @@ public class IdentityService(
 
     private async Task<OtpRequest> CreateAndSendOtpAsync(string phone, OtpPurpose purpose, CancellationToken cancellationToken)
     {
-        var code = string.IsNullOrEmpty(_otpDevOptions.FixedCode) ? SecurityTokenHelpers.GenerateNumericCode() : _otpDevOptions.FixedCode;
+        // Scoped bypass: only the explicitly listed test numbers get the fixed code.
+        // Every other account keeps a real random one, so the bypass cannot be used
+        // against a number its operator did not name.
+        var code = _otpDevOptions.AppliesTo(phone)
+            ? _otpDevOptions.FixedCode
+            : SecurityTokenHelpers.GenerateNumericCode();
         var otpRequest = new OtpRequest
         {
             Id = Guid.NewGuid(),

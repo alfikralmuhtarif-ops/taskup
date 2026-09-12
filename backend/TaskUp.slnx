@@ -5,4 +5,7 @@
     <Project Path="src/TaskUp.Domain/TaskUp.Domain.csproj" />
     <Project Path="src/TaskUp.Infrastructure/TaskUp.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TaskUp.Tests/TaskUp.Tests.csproj" />
+  </Folder>
 </Solution>

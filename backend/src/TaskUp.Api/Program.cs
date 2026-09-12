@@ -256,16 +256,32 @@ foreach (var (prefix, length) in new[] { ("10.0.0.0", 8), ("172.16.0.0", 12), ("
 }
 app.UseForwardedHeaders(forwardedOptions);
 
-// A fixed OTP code makes every account reachable by anyone who knows the phone
-// number. It is a deliberate stopgap while no SMS provider exists, but it must not
-// be able to survive quietly into real use — so say so loudly on every boot, at
-// Warning level, which is what production logging actually keeps.
-var fixedOtp = app.Services.GetRequiredService<IOptions<OtpDevOptions>>().Value.FixedCode;
-if (!string.IsNullOrEmpty(fixedOtp))
+// A fixed OTP code is a deliberate stopgap while no SMS provider exists, but it must
+// not be able to survive quietly into real use: refuse to boot if it is unscoped, and
+// otherwise name the numbers it covers on every boot at Warning level, which is what
+// production logging actually keeps.
+var otpDevOptions = app.Services.GetRequiredService<IOptions<OtpDevOptions>>().Value;
+if (otpDevOptions.IsEnabled)
 {
+    var allowedPhones = otpDevOptions.AllowedPhones;
+
+    // An unscoped fixed code is not a test convenience, it is an open door: it makes
+    // every account on the service reachable by anyone who knows its phone number.
+    // Fail here, at deploy time with a named variable to set, rather than letting a
+    // half-configured stopgap serve real traffic.
+    if (allowedPhones.Count == 0 && !app.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException(
+            "Refusing to start: Otp__FixedCode is set with no Otp__FixedCodePhones. "
+            + "An unscoped fixed code lets anyone sign in as any user. "
+            + "Either clear OTP_FIXED_CODE, or list the test numbers it may apply to, e.g. "
+            + "OTP_FIXED_CODE_PHONES=+966500000000,+966555555555");
+    }
+
     app.Logger.LogWarning(
-        "AUTH BYPASS ACTIVE: every OTP is fixed to \"{Code}\". Any caller who knows a phone number can sign in as its owner. Clear Otp__FixedCode before real users exist.",
-        fixedOtp);
+        "AUTH BYPASS ACTIVE: the fixed OTP applies to {Count} allow-listed number(s): {Phones}. Everyone else gets a real random code. Clear Otp__FixedCode once SMS delivery works.",
+        allowedPhones.Count,
+        string.Join(", ", allowedPhones));
 }
 
 app.UseExceptionHandler();

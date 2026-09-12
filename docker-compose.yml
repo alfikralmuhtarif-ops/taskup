@@ -47,10 +47,11 @@ services:
       Jwt__SigningKey: ${JWT_SIGNING_KEY}
       Encryption__Keys__1: ${ENCRYPTION_KEY_V1}
       AdminBootstrap__Secret: ${ADMIN_BOOTSTRAP_SECRET}
-      # TEMPORARY AUTH BYPASS. Set only while no SMS provider is wired: any phone
-      # number accepts this code, from anywhere on the internet. Empty (the default)
-      # restores real random codes. Clear it in .env the moment SMS is connected.
+      # TEMPORARY AUTH BYPASS, scoped to named test numbers. Set only while no SMS
+      # provider is wired. Empty (the default) restores real random codes everywhere.
+      # A fixed code with an empty phone list makes the API refuse to start.
       Otp__FixedCode: ${OTP_FIXED_CODE:-}
+      Otp__FixedCodePhones: ${OTP_FIXED_CODE_PHONES:-}
     volumes:
       - uploads:/app/uploads
     depends_on:

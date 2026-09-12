@@ -24,6 +24,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- The app uses only HTTPS/TLS and the platform's own crypto; AES-256-GCM lives
+	     on the server, not in this binary. That falls under the standard exemption,
+	     so declaring it here stops App Store Connect asking about export compliance
+	     on every single upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<!-- Permits cleartext HTTP to local/link-local hosts only, so a developer can point
 	     a simulator or device at an API running on their own machine. It does NOT relax
 	     App Transport Security for the internet: the production API is reached over
