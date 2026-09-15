@@ -51,6 +51,12 @@ services:
       # provider is wired. Empty (the default) restores real random codes everywhere.
       # A fixed code with an empty phone list makes the API refuse to start.
       Otp__FixedCode: ${OTP_FIXED_CODE:-}
+      # The fixed code only applies to these numbers; everyone else gets a real random
+      # one. Setting a fixed code without this list makes the API refuse to boot.
+      Otp__FixedCodePhones: ${OTP_FIXED_CODE_PHONES:-}
+      # SMS provider. Empty ApiKey keeps the logging stand-in.
+      Authentica__ApiKey: ${AUTHENTICA_API_KEY:-}
+      Authentica__SenderName: ${AUTHENTICA_SENDER_NAME:-}
       Otp__FixedCodePhones: ${OTP_FIXED_CODE_PHONES:-}
     volumes:
       - uploads:/app/uploads

@@ -67,7 +67,31 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
-builder.Services.AddScoped<ISmsSender, LoggingSmsSender>();
+// SMS delivery. Authentica (authentica.sa) is used when an API key is configured;
+// without one the logging stand-in stays, so the whole auth flow still runs locally
+// without credentials or spending real SMS credits. Deciding here rather than inside
+// the sender means nothing silently no-ops in production: once a key is present, real
+// delivery is the only behaviour.
+builder.Services.Configure<AuthenticaSmsOptions>(
+    builder.Configuration.GetSection(AuthenticaSmsOptions.SectionName));
+
+var authenticaOptions = builder.Configuration
+    .GetSection(AuthenticaSmsOptions.SectionName).Get<AuthenticaSmsOptions>() ?? new AuthenticaSmsOptions();
+
+if (!string.IsNullOrWhiteSpace(authenticaOptions.ApiKey))
+{
+    builder.Services.AddHttpClient<ISmsSender, AuthenticaSmsSender>(client =>
+    {
+        client.BaseAddress = new Uri(authenticaOptions.BaseUrl);
+        client.Timeout = TimeSpan.FromSeconds(authenticaOptions.TimeoutSeconds);
+        client.DefaultRequestHeaders.Add("X-Authorization", authenticaOptions.ApiKey);
+        client.DefaultRequestHeaders.Add("Accept", "application/json");
+    });
+}
+else
+{
+    builder.Services.AddScoped<ISmsSender, LoggingSmsSender>();
+}
 
 builder.Services.AddScoped<ITaskAuthorizationService, TaskAuthorizationService>();
 builder.Services.AddScoped<IProjectAuthorizationService, ProjectAuthorizationService>();
@@ -260,6 +284,14 @@ app.UseForwardedHeaders(forwardedOptions);
 // not be able to survive quietly into real use: refuse to boot if it is unscoped, and
 // otherwise name the numbers it covers on every boot at Warning level, which is what
 // production logging actually keeps.
+// Say plainly which sender is live; "no SMS arrived" is otherwise indistinguishable
+// from "the stand-in was registered and logged it instead".
+app.Logger.LogInformation(
+    "SMS delivery: {Provider}",
+    string.IsNullOrWhiteSpace(authenticaOptions.ApiKey)
+        ? "logging stand-in — no Authentica API key configured, so no real message is sent"
+        : $"Authentica, sender name '{authenticaOptions.SenderName}'");
+
 var otpDevOptions = app.Services.GetRequiredService<IOptions<OtpDevOptions>>().Value;
 if (otpDevOptions.IsEnabled)
 {
