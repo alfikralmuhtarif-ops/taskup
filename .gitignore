@@ -35,3 +35,8 @@ backend/src/TaskUp.Api/uploads/
 deploy/letsencrypt/
 deploy/certbot-webroot/
 deploy/nginx/active/
+# Built bundles the proxy bind-mounts: the landing page from landing/, the admin
+# panel from admin-panel/. Populated on the server at deploy time, so ignoring them
+# keeps a local build from being committed as if it were source.
+deploy/panel/
+deploy/site/

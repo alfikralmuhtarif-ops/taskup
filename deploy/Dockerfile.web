@@ -25,8 +25,11 @@ ARG VITE_API_URL=https://api.taskupapp.net
 ENV VITE_API_URL=$VITE_API_URL
 RUN (pnpm exec vite build || npx vite build)
 
-# ── Serve ─────────────────────────────────────────────────────────────────────
+# ── Carry the built bundles ───────────────────────────────────────────────────
+# This image never serves anything: compose overrides its command to copy these
+# directories into the shared `spa` volume and exit, and the proxy service is what
+# serves them, from bind-mounted configs under deploy/nginx. The nginx base is kept
+# only because that command and the proxy both address files by this path.
 FROM nginx:1.27-alpine AS runtime
 COPY --from=app-build   /src/dist /usr/share/nginx/html/app
 COPY --from=admin-build /src/dist /usr/share/nginx/html/admin
-COPY deploy/nginx/taskup.conf /etc/nginx/conf.d/default.conf
