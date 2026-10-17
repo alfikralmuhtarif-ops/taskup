@@ -56,7 +56,9 @@ services:
       Otp__FixedCodePhones: ${OTP_FIXED_CODE_PHONES:-}
       # SMS provider. Empty ApiKey keeps the logging stand-in.
       Authentica__ApiKey: ${AUTHENTICA_API_KEY:-}
-      Authentica__SenderName: ${AUTHENTICA_SENDER_NAME:-}
+      # Which approved template renders the message; it carries the sender identity,
+      # so no sender name goes on the wire. Unset = the account default.
+      Authentica__TemplateId: ${AUTHENTICA_TEMPLATE_ID:-}
     volumes:
       - uploads:/app/uploads
     depends_on:

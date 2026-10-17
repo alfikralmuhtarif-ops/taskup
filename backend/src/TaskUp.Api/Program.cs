@@ -290,7 +290,7 @@ app.Logger.LogInformation(
     "SMS delivery: {Provider}",
     string.IsNullOrWhiteSpace(authenticaOptions.ApiKey)
         ? "logging stand-in — no Authentica API key configured, so no real message is sent"
-        : $"Authentica, sender name '{authenticaOptions.SenderName}'");
+        : $"Authentica /send-otp, template {authenticaOptions.TemplateId?.ToString() ?? "<account default>"}");
 
 var otpDevOptions = app.Services.GetRequiredService<IOptions<OtpDevOptions>>().Value;
 if (otpDevOptions.IsEnabled)

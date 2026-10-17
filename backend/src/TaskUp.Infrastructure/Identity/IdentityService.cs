@@ -289,7 +289,7 @@ public class IdentityService(
         db.OtpRequests.Add(otpRequest);
         await db.SaveChangesAsync(cancellationToken);
 
-        await smsSender.SendAsync(phone, $"Your TaskUp verification code is {code}", cancellationToken);
+        await smsSender.SendOtpAsync(phone, code, cancellationToken);
 
         return otpRequest;
     }

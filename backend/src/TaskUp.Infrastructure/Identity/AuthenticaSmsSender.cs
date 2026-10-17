@@ -7,8 +7,8 @@ using TaskUp.Application.Abstractions;
 namespace TaskUp.Infrastructure.Identity;
 
 /// <summary>
-/// Delivers OTP codes through Authentica's transactional SMS endpoint.
-/// See <see cref="AuthenticaSmsOptions"/> for why send-sms rather than send-otp.
+/// Delivers OTP codes through Authentica's send-otp endpoint.
+/// See <see cref="AuthenticaSmsOptions"/> for why we supply the code ourselves.
 /// </summary>
 public class AuthenticaSmsSender(
     HttpClient http,
@@ -17,12 +17,17 @@ public class AuthenticaSmsSender(
 {
     private readonly AuthenticaSmsOptions _options = options.Value;
 
-    private sealed record SendSmsRequest(
+    /// <summary>Omitted fields are left off the wire entirely rather than sent as
+    /// null, because Authentica validates types and a null template_id is not an
+    /// integer.</summary>
+    private sealed record SendOtpRequest(
+        [property: JsonPropertyName("method")] string Method,
         [property: JsonPropertyName("phone")] string Phone,
-        [property: JsonPropertyName("message")] string Message,
-        [property: JsonPropertyName("sender_name")] string SenderName);
+        [property: JsonPropertyName("otp")] string Otp,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        [property: JsonPropertyName("template_id")] int? TemplateId);
 
-    public async Task SendAsync(string phoneE164, string message, CancellationToken cancellationToken = default)
+    public async Task SendOtpAsync(string phoneE164, string code, CancellationToken cancellationToken = default)
     {
         // Phones are already stored E.164 (PhoneNumberNormalizer emits "+<cc><number>"),
         // which is the only format Authentica accepts — but assert rather than trust,
@@ -30,15 +35,23 @@ public class AuthenticaSmsSender(
         if (!phoneE164.StartsWith('+'))
         {
             throw new InvalidOperationException(
-                $"Authentica requires E.164 phone numbers; got a value not starting with '+'.");
+                "Authentica requires E.164 phone numbers; got a value not starting with '+'.");
+        }
+
+        // Their documented bound. Caught here because a code outside it comes back as
+        // a validation error that says nothing about which field was wrong.
+        if (code.Length is < 4 or > 12 || !code.All(char.IsAsciiDigit))
+        {
+            throw new InvalidOperationException(
+                $"Authentica accepts a 4-12 digit numeric code; got {code.Length} character(s).");
         }
 
         HttpResponseMessage response;
         try
         {
             response = await http.PostAsJsonAsync(
-                "/api/v2/send-sms",
-                new SendSmsRequest(phoneE164, message, _options.SenderName),
+                "/api/v2/send-otp",
+                new SendOtpRequest("sms", phoneE164, code, _options.TemplateId),
                 cancellationToken);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
@@ -51,9 +64,9 @@ public class AuthenticaSmsSender(
 
         if (!response.IsSuccessStatusCode)
         {
-            // Body first — Authentica puts the actual reason (unregistered sender name,
-            // malformed number, out of credits) in it, and the bare status code alone
-            // has repeatedly proven useless for diagnosis.
+            // Body first — Authentica puts the actual reason (unknown template, malformed
+            // number, out of credits) in it, and the bare status code alone has repeatedly
+            // proven useless for diagnosis. A 404 here means the route itself is wrong.
             var body = await SafeReadAsync(response, cancellationToken);
             logger.LogError(
                 "Authentica rejected an SMS to {MaskedPhone}: {Status} {Body}",
