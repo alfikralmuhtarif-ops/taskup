@@ -40,3 +40,9 @@ deploy/nginx/active/
 # keeps a local build from being committed as if it were source.
 deploy/panel/
 deploy/site/
+
+# Android release signing — never commit these.
+android/taskup-release.jks
+android/keystore.properties
+*.jks
+keystore.properties
