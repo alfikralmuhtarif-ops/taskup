@@ -199,7 +199,7 @@ export const t = {
         },
         {
           heading: "5. الإبلاغ والحظر وتعليق الحساب",
-          body: "يمكنك حظر أي مستخدم من داخل المحادثة، فتتوقف الرسائل بينكما في الاتجاهين ولا يمكنه بدء محادثة جديدة معك. ويمكنك الإبلاغ عن أي مستخدم أو رسالة، وتصل البلاغات إلى فريق المراجعة لدينا. نحتفظ بالحق في تعطيل أي حساب يخالف هذه الشروط، وقد يتم ذلك دون إشعار مسبق في الحالات الجسيمة.",
+          body: "يمكنك حظر أي مستخدم من داخل المحادثة، فتتوقف الرسائل بينكما في الاتجاهين ولا يمكنه بدء محادثة جديدة معك، وتجد قائمة المحظورين في «الحساب ← المستخدمون المحظورون» لإلغاء الحظر وقت ما شئت. ويمكنك الإبلاغ عن أي مستخدم أو عن رسالة بعينها، وتصل البلاغات إلى فريق المراجعة لدينا. نحتفظ بالحق في تعطيل أي حساب يخالف هذه الشروط، وقد يتم ذلك دون إشعار مسبق في الحالات الجسيمة.",
         },
         {
           heading: "6. المحتوى الذي تنشئه",
@@ -527,7 +527,7 @@ export const t = {
         },
         {
           heading: "5. Reporting, Blocking and Suspension",
-          body: "You can block any user from inside a conversation: messages stop in both directions and they cannot start a new conversation with you. You can also report any user or message, and reports reach our review team. We may disable any account that breaches these Terms, without prior notice in serious cases.",
+          body: "You can block any user from inside a conversation: messages stop in both directions and they cannot start a new conversation with you, and the list under Account → Blocked Users lets you unblock anyone at any time. You can also report any user, or one specific message, and reports reach our review team. We may disable any account that breaches these Terms, without prior notice in serious cases.",
         },
         {
           heading: "6. Content You Create",

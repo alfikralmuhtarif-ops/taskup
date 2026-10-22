@@ -5,7 +5,7 @@ import {
   searchApi, activityApi, notificationSettingsApi, invitesApi, setSession, absoluteStorageUrl, ApiError,
   type BackendUserProfile, type BackendTaskListItem, type BackendTaskDetail, type BackendProjectListItem, type BackendProjectDetail, type BackendPerson,
   type BackendNoteListItem, type BackendNoteDetail, type BackendSearchResult, type BackendActivityItem, type BackendInvite,
-  type BackendConversation, type BackendNotificationPreferences, type BackendNotificationDeliverySettings,
+  type BackendBlockedUser, type BackendConversation, type BackendNotificationPreferences, type BackendNotificationDeliverySettings,
   type BackendTaskReport, type BackendChecklistItem, type BackendTaskUpdate,
 } from './lib/api'
 import { startRealtime, stopRealtime, subscribe } from './lib/realtime'
@@ -201,6 +201,12 @@ const WarningIcon = ({ size = 13 }: IconProps) => (
     <circle cx="12" cy="17.5" r="0.9" fill="currentColor"/>
   </svg>
 )
+const BlockIcon = ({ size = 16 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/>
+    <path d="M5.6 5.6l12.8 12.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+  </svg>
+)
 const StarIcon = ({ size = 16 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l3 6.4 6.9.8-5.1 4.8 1.4 6.9L12 17.8l-6.2 3.6 1.4-6.9-5.1-4.8 6.9-.8L12 2.5z"/></svg>
 )
@@ -301,6 +307,7 @@ type Screen =
   | 'chat'
   | 'notifSettings'
   | 'contactsSettings'
+  | 'blockedUsers'
   | 'shareApp'
   | 'help'
   | 'search'
@@ -3234,6 +3241,96 @@ function ContactsSettingsScreen({ onBack, lang, onMessage }: { onBack: () => voi
 
 // ─── Screen: Share App ────────────────────────────────────────────────────────
 
+// Blocking was a one-way door: POST /people/{id}/block was reachable from the chat
+// header, but DELETE and GET /people/blocked were called from nowhere in the app, so a
+// user who blocked someone — or a reviewer testing the feature — had no way to see or
+// undo it. Both endpoints already existed (PeopleController.cs:27-34).
+function BlockedUsersScreen({ onBack, lang }: { onBack: () => void; lang: Lang }) {
+  const isRtl = lang === 'ar'
+  const [blocked, setBlocked] = useState<BackendBlockedUser[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [unblocking, setUnblocking] = useState<string | null>(null)
+
+  const load = () => {
+    peopleApi.listBlocked()
+      .then(res => { setBlocked(res); setError(null) })
+      .catch((e: unknown) => { setBlocked([]); setError(e instanceof ApiError ? e.message : String(e)) })
+  }
+  useEffect(load, [])
+
+  const handleUnblock = async (userId: string) => {
+    setUnblocking(userId)
+    try {
+      await peopleApi.unblock(userId)
+      setBlocked(prev => (prev ?? []).filter(b => b.userId !== userId))
+    } catch (e: unknown) {
+      setError(e instanceof ApiError ? e.message : String(e))
+    } finally {
+      setUnblocking(null)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F5F7FA' }}>
+      <div style={{ background: '#fff', padding: '14px 20px', borderBottom: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <BackButton onBack={onBack} lang={lang} />
+        <span style={{ fontSize: 17, fontWeight: 700, color: '#111827', flex: 1 }}>{isRtl ? 'المستخدمون المحظورون' : 'Blocked Users'}</span>
+        {blocked !== null && blocked.length > 0 && (
+          <div style={{ background: '#FEF2F2', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, color: '#DC2626' }}>{blocked.length}</div>
+        )}
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+        <div style={{ background: '#fff', borderRadius: 14, padding: '14px 16px', fontSize: 13, color: '#6B7280', lineHeight: 1.6, marginBottom: 14 }}>
+          {isRtl
+            ? 'المحظور لا يستطيع إرسال رسائل لك ولا بدء محادثة جديدة معك، ولا تستطيع أنت ذلك معه. يمكنك إلغاء الحظر في أي وقت.'
+            : 'A blocked user cannot message you or start a new conversation with you, and you cannot message them. You can unblock anyone at any time.'}
+        </div>
+
+        {error && (
+          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '14px 16px', color: '#B91C1C', fontSize: 13, marginBottom: 14 }}>
+            {error}
+          </div>
+        )}
+
+        {blocked === null ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF', fontSize: 13 }}>
+            {isRtl ? 'جاري التحميل...' : 'Loading...'}
+          </div>
+        ) : blocked.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#F0FDF4', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+              <BlockIcon size={26} />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>{isRtl ? 'لا أحد محظور' : 'No one is blocked'}</div>
+            <div style={{ fontSize: 13, color: '#6B7280', marginTop: 6, lineHeight: 1.6 }}>
+              {isRtl ? 'يمكنك حظر أي مستخدم من قائمة المحادثة معه.' : 'You can block a user from the menu inside your chat with them.'}
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden' }}>
+            {blocked.map((b, i) => (
+              <div key={b.userId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: i === blocked.length - 1 ? 'none' : '1px solid #F5F5F5' }}>
+                <Avatar name={b.name} size={38} photo={b.avatarUrl ? absoluteStorageUrl(b.avatarUrl) : null} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</div>
+                  <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>
+                    {(isRtl ? 'حُظر في ' : 'Blocked on ') + new Date(b.blockedAt).toLocaleDateString(isRtl ? 'ar-u-ca-gregory' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </div>
+                </div>
+                <button onClick={() => handleUnblock(b.userId)} disabled={unblocking === b.userId}
+                  style={{ padding: '7px 14px', borderRadius: 20, border: '1.5px solid #E5E7EB', background: '#fff', color: '#2185C7', fontSize: 13, fontWeight: 600, cursor: unblocking === b.userId ? 'default' : 'pointer', opacity: unblocking === b.userId ? 0.5 : 1, fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter', flexShrink: 0 }}>
+                  {unblocking === b.userId ? (isRtl ? '...' : '...') : (isRtl ? 'إلغاء الحظر' : 'Unblock')}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ShareAppScreen({ onBack, lang }: { onBack: () => void; lang: Lang }) {
   const isRtl = lang === 'ar'
   const [copied, setCopied] = useState(false)
@@ -3622,7 +3719,7 @@ function ChangePhoneSheet({ lang, onClose, onChanged }: { lang: Lang; onClose: (
   )
 }
 
-function ProfileScreen({ onLogout, lang, onChangeLang, onTerms, onPrivacy, onNotifSettings, onContacts, onShareApp, onHelp, onPhoneChanged, currentUser }: { onLogout: () => void; lang: Lang; onChangeLang: () => void; onTerms: () => void; onPrivacy: () => void; onNotifSettings: () => void; onContacts: () => void; onShareApp: () => void; onHelp: () => void; onPhoneChanged: (profile: BackendUserProfile) => void; currentUser: CurrentUser }) {
+function ProfileScreen({ onLogout, lang, onChangeLang, onTerms, onPrivacy, onNotifSettings, onContacts, onBlockedUsers, onShareApp, onHelp, onPhoneChanged, currentUser }: { onLogout: () => void; lang: Lang; onChangeLang: () => void; onTerms: () => void; onPrivacy: () => void; onNotifSettings: () => void; onContacts: () => void; onBlockedUsers: () => void; onShareApp: () => void; onHelp: () => void; onPhoneChanged: (profile: BackendUserProfile) => void; currentUser: CurrentUser }) {
   const tr = t[lang]
   const isRtl = lang === 'ar'
   const [showChangePhone, setShowChangePhone] = useState(false)
@@ -3685,6 +3782,7 @@ function ProfileScreen({ onLogout, lang, onChangeLang, onTerms, onPrivacy, onNot
       {/* ── Account ──────────────────────────────────────────────── */}
       <ProfileSection title={isRtl ? 'الحساب' : 'Account'}>
         <ProfileRow icon={<PeopleIcon size={17} />} iconBg="#F3E8FF" iconColor="#8B5CF6" label={tr.contactsSettings} onPress={onContacts} />
+        <ProfileRow icon={<BlockIcon size={17} />} iconBg="#FEF2F2" iconColor="#DC2626" label={isRtl ? 'المستخدمون المحظورون' : 'Blocked Users'} onPress={onBlockedUsers} />
         <ProfileRow icon={<ClipboardIcon size={17} />} iconBg="#F0FDF4" iconColor="#059669" label={tr.termsOfUse} onPress={onTerms} />
         <ProfileRow icon={<LockIcon size={17} />} iconBg="#FEF3C7" iconColor="#D97706" label={tr.privacyPolicy} onPress={onPrivacy} last />
       </ProfileSection>
@@ -4342,6 +4440,10 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
   const [showMenu, setShowMenu] = useState(false)
   const [reportPrompt, setReportPrompt] = useState(false)
   const [reportReason, setReportReason] = useState('')
+  // null = reporting the person; an id = reporting that one message. UserReport.MessageId
+  // has always existed server-side and peopleApi.report has always taken it; nothing in
+  // the UI ever passed one, so the terms' promise of reporting a message was not true.
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null)
   const [actionNotice, setActionNotice] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -4405,9 +4507,10 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
   const submitReport = async () => {
     if (!conv.realUserId || !reportReason.trim()) return
     try {
-      await peopleApi.report(conv.realUserId, reportReason.trim())
+      await peopleApi.report(conv.realUserId, reportReason.trim(), reportMessageId ?? undefined)
       setReportPrompt(false)
       setReportReason('')
+      setReportMessageId(null)
       setActionNotice(isRtl ? 'تم إرسال البلاغ' : 'Report submitted')
     } catch (e) {
       setActionNotice(e instanceof Error ? e.message : String(e))
@@ -4479,7 +4582,7 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
               <>
                 <div onClick={() => setShowMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />
                 <div style={{ position: 'absolute', insetInlineEnd: 0, top: 38, background: '#fff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid #F0F0F0', zIndex: 21, minWidth: 170, overflow: 'hidden' }}>
-                  <button onClick={() => { setShowMenu(false); setReportPrompt(true) }}
+                  <button onClick={() => { setShowMenu(false); setReportMessageId(null); setReportPrompt(true) }}
                     style={{ width: '100%', padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: isRtl ? 'right' : 'left', fontSize: 13, color: '#111827', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter' }}>
                     {isRtl ? 'الإبلاغ عن المستخدم' : 'Report user'}
                   </button>
@@ -4508,7 +4611,7 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
           const isMe = msg.from === 'me'
           const msgText = lang === 'en' ? msg.textEn : msg.text
           return (
-            <div key={msg.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+            <div key={msg.id} style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
               <div style={{
                 maxWidth: '74%',
                 background: isMe ? '#2185C7' : '#fff',
@@ -4525,6 +4628,17 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
                   {msg.time} {isMe && '✓✓'}
                 </div>
               </div>
+              {/* Reporting the person was in the header menu; reporting the message
+                  itself had no affordance anywhere, so it sits next to the bubble it
+                  reports. Only on the other side's messages — reporting your own is
+                  rejected by the server (PeopleService.ReportAsync:99). */}
+              {!isMe && isReal && (
+                <button onClick={() => { setReportMessageId(msg.id); setReportPrompt(true) }}
+                  aria-label={isRtl ? 'الإبلاغ عن هذه الرسالة' : 'Report this message'}
+                  style={{ width: 26, height: 26, borderRadius: '50%', background: 'none', border: 'none', cursor: 'pointer', color: '#C0C7D0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
+                  <WarningIcon size={14} />
+                </button>
+              )}
             </div>
           )
         })}
@@ -4601,14 +4715,28 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
       {/* Report prompt */}
       {reportPrompt && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 30, display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={() => setReportPrompt(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} />
+          <div onClick={() => { setReportPrompt(false); setReportMessageId(null) }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} />
           <div style={{ position: 'relative', width: '100%', background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{isRtl ? 'الإبلاغ عن المستخدم' : 'Report user'}</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>
+              {reportMessageId ? (isRtl ? 'الإبلاغ عن رسالة' : 'Report message') : (isRtl ? 'الإبلاغ عن المستخدم' : 'Report user')}
+            </span>
+            {/* Quoting it back: the flag is small and sits beside a bubble, so this is
+                the only confirmation of which message the report is actually about. */}
+            {reportMessageId && (() => {
+              const target = messages.find(m => m.id === reportMessageId)
+              if (!target) return null
+              const targetText = lang === 'en' ? target.textEn : target.text
+              return (
+                <div style={{ background: '#F5F7FA', borderRadius: 12, padding: '10px 14px', fontSize: 13, color: '#6B7280', lineHeight: 1.5, maxHeight: 72, overflow: 'hidden' }}>
+                  «{targetText}»
+                </div>
+              )
+            })()}
             <textarea value={reportReason} onChange={e => setReportReason(e.target.value)}
               placeholder={isRtl ? 'وضّح سبب البلاغ...' : 'Describe the reason...'} rows={3}
               style={{ padding: '12px 14px', border: '1.5px solid #E5E7EB', borderRadius: 12, fontSize: 14, outline: 'none', resize: 'none', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter', color: '#111827' }} />
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setReportPrompt(false)} style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter' }}>
+              <button onClick={() => { setReportPrompt(false); setReportMessageId(null) }} style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1.5px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter' }}>
                 {isRtl ? 'إلغاء' : 'Cancel'}
               </button>
               <button onClick={submitReport} disabled={!reportReason.trim()}
@@ -5706,7 +5834,7 @@ export default function App() {
             setLang('ar'); setScreen('langSelect'); setCurrentUser({ id: null, name: null, phone: null, photo: null })
             setScreenHistory([])
           }}
-          lang={lang} onChangeLang={() => setScreen('langChange')} onTerms={() => { setLegalSource('profile'); setScreen('terms') }} onPrivacy={() => { setLegalSource('profile'); setScreen('privacy') }} onNotifSettings={() => setScreen('notifSettings')} onContacts={() => setScreen('contactsSettings')} onShareApp={() => setScreen('shareApp')} onHelp={() => setScreen('help')} onPhoneChanged={profile => setCurrentUser(u => ({ ...u, phone: profile.phone }))} currentUser={currentUser}
+          lang={lang} onChangeLang={() => setScreen('langChange')} onTerms={() => { setLegalSource('profile'); setScreen('terms') }} onPrivacy={() => { setLegalSource('profile'); setScreen('privacy') }} onNotifSettings={() => setScreen('notifSettings')} onContacts={() => setScreen('contactsSettings')} onBlockedUsers={() => setScreen('blockedUsers')} onShareApp={() => setScreen('shareApp')} onHelp={() => setScreen('help')} onPhoneChanged={profile => setCurrentUser(u => ({ ...u, phone: profile.phone }))} currentUser={currentUser}
         />
       )
       case 'search': return (
@@ -5721,6 +5849,7 @@ export default function App() {
       )
       case 'notifSettings': return <NotifSettingsScreen onBack={() => setScreen('profile')} lang={lang} />
       case 'contactsSettings': return <ContactsSettingsScreen onBack={() => setScreen('profile')} lang={lang} onMessage={openChatWithUser} />
+      case 'blockedUsers': return <BlockedUsersScreen onBack={() => setScreen('profile')} lang={lang} />
       case 'shareApp': return <ShareAppScreen onBack={() => setScreen('profile')} lang={lang} />
       case 'help': return <HelpScreen onBack={() => setScreen('profile')} lang={lang} />
       case 'langChange': return <LangChangeScreen current={lang} onBack={() => setScreen('profile')} onSelect={l => { setLang(l); setScreen('profile') }} />
