@@ -46,3 +46,7 @@ android/taskup-release.jks
 android/keystore.properties
 *.jks
 keystore.properties
+
+# Python bytecode
+__pycache__/
+*.pyc
