@@ -128,10 +128,6 @@ export const t = {
     dueDate: 'الموعد',
     sharedWith: 'شارك مع',
     details: 'التفاصيل',
-    aiSuggestion: '✨ اقتراح ذكي',
-    aiSuggestionText: 'يبدو أن الموعد قريب ولا تزال المهمة بانتظار الاعتماد النهائي.',
-    addAction: 'إضافة إجراء',
-    dismiss: 'تجاهل',
     composerPlaceholder: 'اكتب تحديثًا...',
 
     // Task Report
@@ -143,10 +139,7 @@ export const t = {
     completed: 'تم إنجازه',
     remaining: 'المتبقي',
     lastActivity: 'آخر نشاط',
-    aiSummaryLabel: '✨ ملخص ذكي',
-    aiSummaryText: 'تمت مراجعة العقد وتحديث البنود المالية. النسخة الحالية جاهزة للاعتماد، ولا تزال المهمة بانتظار موافقة المدير.',
     riskLabel: '⚠️ يحتاج انتباه',
-    riskText: 'الموعد غداً ولم يتم اعتماد النسخة النهائية بعد.',
     update: 'تحديث',
     updates: 'تحديثات',
 
@@ -469,10 +462,6 @@ export const t = {
     dueDate: 'Due date',
     sharedWith: 'Shared with',
     details: 'Details',
-    aiSuggestion: '✨ Smart suggestion',
-    aiSuggestionText: 'The deadline is approaching and the task is still awaiting final approval.',
-    addAction: 'Add action',
-    dismiss: 'Dismiss',
     composerPlaceholder: 'Write an update...',
 
     taskReport: 'Task Report',
@@ -483,10 +472,7 @@ export const t = {
     completed: 'Completed',
     remaining: 'Remaining',
     lastActivity: 'Last activity',
-    aiSummaryLabel: '✨ AI Summary',
-    aiSummaryText: 'The contract has been reviewed and financial terms updated. The current version is ready for approval, and the task is awaiting manager sign-off.',
     riskLabel: '⚠️ Needs attention',
-    riskText: "The deadline is tomorrow and the final version hasn't been approved yet.",
     update: 'update',
     updates: 'updates',
 

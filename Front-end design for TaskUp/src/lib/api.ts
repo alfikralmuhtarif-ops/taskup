@@ -238,6 +238,28 @@ export interface BackendTaskUpdate {
   createdAt: string
 }
 
+export interface BackendTaskReport {
+  taskId: string
+  title: string
+  status: string
+  progress: number | null
+  totalChecklistItems: number
+  completedChecklistItems: number
+  dueDate: string | null
+  isOverdue: boolean
+  updateCount: number
+  lastUpdateAt: string | null
+}
+
+export interface BackendChecklistItem {
+  id: string
+  title: string
+  isCompleted: boolean
+  sortOrder: number
+  completedById: string | null
+  completedAt: string | null
+}
+
 export const tasksApi = {
   list: (params: { section?: string; projectId?: string; status?: string } = {}) =>
     request<BackendTaskListItem[]>(`/tasks?${qs(params)}`),
@@ -252,6 +274,11 @@ export const tasksApi = {
   getUpdates: (id: string) => request<{ items: BackendTaskUpdate[] }>(`/tasks/${id}/updates`),
   addUpdate: (id: string, text: string) =>
     request<BackendTaskUpdate>(`/tasks/${id}/updates`, { method: 'POST', body: JSON.stringify({ text }) }),
+  // Both of these were built server-side and never called: the report screen showed a
+  // hardcoded 75%, a two-item "contract review" checklist and an invented AI summary,
+  // on every task.
+  getReport: (id: string) => request<BackendTaskReport>(`/tasks/${id}/report`),
+  getChecklist: (id: string) => request<BackendChecklistItem[]>(`/tasks/${id}/checklist-items`),
 }
 
 export interface BackendProjectListItem {

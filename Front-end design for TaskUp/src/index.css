@@ -75,11 +75,17 @@ input[data-ltr] {
   text-align: left;
 }
 
-/* Labels and paragraphs inherit direction cleanly */
-[dir="rtl"] label,
-[dir="rtl"] p,
-[dir="rtl"] span,
-[dir="rtl"] div {
+/* Labels and paragraphs inherit direction cleanly.
+   :not([dir]) is load-bearing. Without it this rule also matched every element that
+   carries its own dir="ltr" — the OTP boxes, the phone row, timestamps, links, the
+   support address — and forced them back to inherit RTL, because an author rule beats
+   the user-agent's [dir=ltr]{direction:ltr}. The dir attribute was being written in a
+   dozen places and silently doing nothing; the OTP row rendered with box 1 on the
+   right, so the code filled right to left. */
+[dir="rtl"] label:not([dir]),
+[dir="rtl"] p:not([dir]),
+[dir="rtl"] span:not([dir]),
+[dir="rtl"] div:not([dir]) {
   direction: inherit;
 }
 

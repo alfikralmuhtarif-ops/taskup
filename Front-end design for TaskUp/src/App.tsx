@@ -6,6 +6,7 @@ import {
   type BackendUserProfile, type BackendTaskListItem, type BackendTaskDetail, type BackendProjectListItem, type BackendProjectDetail, type BackendPerson,
   type BackendNoteListItem, type BackendNoteDetail, type BackendSearchResult, type BackendActivityItem, type BackendInvite,
   type BackendConversation, type BackendNotificationPreferences, type BackendNotificationDeliverySettings,
+  type BackendTaskReport, type BackendChecklistItem, type BackendTaskUpdate,
 } from './lib/api'
 import { startRealtime, stopRealtime, subscribe } from './lib/realtime'
 import { Capacitor } from '@capacitor/core'
@@ -842,7 +843,15 @@ function PhoneScreen({ onNext, onBack, onNotRegistered, lang, mode }: { onNext: 
   const tr = t[lang]
   const isEn = lang === 'en'
   const isRtl = lang === 'ar'
-  const countryCode = isEn ? '+1' : '+966'
+  // The country code used to be derived from the UI language — English meant '+1'.
+  // Nobody could change it: this screen rendered a fixed label, not a picker, while
+  // the two other phone screens in the app already used CountryPickerSheet. A Saudi
+  // user who ran the app in English was registered as +1XXXXXXXXX, and any number
+  // allow-listed in E.164 (the OTP test numbers among them) could never be matched.
+  // It defaults to +966 because that is the app's market, and is now selectable.
+  const [countryCode, setCountryCode] = useState('+966')
+  const [showCountryPicker, setShowCountryPicker] = useState(false)
+  const selectedCountry = COUNTRY_CODES.find(c => c.code === countryCode)!
   const title = mode === 'login' ? tr.loginTitle : tr.welcomeTitle
   const subtitle = mode === 'login' ? tr.loginSubtitle : tr.phoneSubtitle
 
@@ -882,10 +891,13 @@ function PhoneScreen({ onNext, onBack, onNotRegistered, lang, mode }: { onNext: 
       <div style={{ flex: 1 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>{title}</h1>
         <p style={{ fontSize: 15, color: '#6B7280', margin: '0 0 32px' }}>{subtitle}</p>
-        <div dir="ltr" style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
-          <div style={{ padding: '14px', border: '1.5px solid #E5E7EB', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 6, minWidth: 90, color: '#374151', fontSize: 14, fontWeight: 500, fontFamily: 'Inter' }}>
-            {isEn ? '🌍 ' : '🇸🇦 '}{countryCode}
-          </div>
+        <div dir="ltr" style={{ display: 'flex', direction: 'ltr', gap: 10, marginBottom: 24 }}>
+          <button onClick={() => setShowCountryPicker(true)}
+            style={{ padding: '14px', border: '1.5px solid #E5E7EB', borderRadius: 12, background: '#fff', display: 'flex', alignItems: 'center', gap: 6, minWidth: 90, color: '#374151', fontSize: 14, fontWeight: 500, fontFamily: 'Inter', cursor: 'pointer' }}>
+            <span>{selectedCountry.flag}</span>
+            <span dir="ltr">{countryCode}</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
           {/* Was unfiltered: it accepted letters, spaces and a re-typed country code
               straight into the request. normalizeLocalPhone is the same guard the
               admin panel and the change-phone sheet already use. */}
@@ -918,6 +930,11 @@ function PhoneScreen({ onNext, onBack, onNotRegistered, lang, mode }: { onNext: 
           </p>
         )}
       </div>
+      {showCountryPicker && (
+        <CountryPickerSheet lang={lang} selected={countryCode}
+          onSelect={code => { setCountryCode(code); setPhone(p => normalizeLocalPhone(p, code)) }}
+          onClose={() => setShowCountryPicker(false)} />
+      )}
     </div>
   )
 }
@@ -945,6 +962,15 @@ function OTPScreen({ requestId, onNext, onBack, lang, mode }: {
     const next = [...otp]; next[i] = val; setOtp(next)
     if (val && i < 5) refs[i + 1].current?.focus()
   }
+
+  // Focus only ever walked forwards, so once the row actually ran left to right a
+  // correction had to be made by tapping the box by hand. Backspace on an empty box
+  // steps back the way every other OTP field does.
+  const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otp[i] && i > 0) {
+      refs[i - 1].current?.focus()
+    }
+  }
   const filled = otp.every(v => v !== '')
 
   const handleVerify = async () => {
@@ -968,9 +994,14 @@ function OTPScreen({ requestId, onNext, onBack, lang, mode }: {
       <div style={{ flex: 1, paddingTop: 16 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>{tr.otpTitle}</h1>
         <p style={{ fontSize: 15, color: '#6B7280', margin: '0 0 32px' }}>{tr.otpSubtitle}</p>
-        <div dir="ltr" style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 28 }}>
+        {/* direction is set inline as well as via dir: the attribute alone lost to an
+            author rule in index.css and the row rendered right to left, so box 1 sat
+            on the right and the code was entered backwards. */}
+        <div dir="ltr" style={{ display: 'flex', direction: 'ltr', gap: 10, justifyContent: 'center', marginBottom: 28 }}>
           {otp.map((v, i) => (
-            <input key={i} ref={refs[i]} value={v} maxLength={1} onChange={e => handleChange(i, e.target.value)}
+            <input key={i} ref={refs[i]} value={v} maxLength={1} autoFocus={i === 0} inputMode="numeric"
+              autoComplete={i === 0 ? 'one-time-code' : 'off'}
+              onKeyDown={e => handleKeyDown(i, e)} onChange={e => handleChange(i, e.target.value)}
               style={{ width: 44, height: 54, textAlign: 'center', fontSize: 22, fontWeight: 700, border: `2px solid ${v ? '#2185C7' : '#E5E7EB'}`, borderRadius: 12, outline: 'none', fontFamily: 'Inter', color: '#111827', transition: 'border-color 0.15s' }} />
           ))}
         </div>
@@ -1709,6 +1740,12 @@ function ProjectDetailScreen({ project, onBack, onTaskClick, onCreateTask, onUpd
     }
   }
 
+  // `taskCount` is the project's total and `progress` the share of it that is done, so
+  // the completed count is one from the other. The header used to print taskCount as the
+  // completed figure and divide it by the progress to invent a total — a four-task project
+  // at 50% read "4 of 8 tasks completed" instead of "2 of 4".
+  const completedTasks = Math.round((project.taskCount * project.progress) / 100)
+
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: '#F5F7FA' }}>
       <div style={{ background: '#fff', padding: '14px 20px', borderBottom: '1px solid #F0F0F0' }}>
@@ -1721,7 +1758,7 @@ function ProjectDetailScreen({ project, onBack, onTaskClick, onCreateTask, onUpd
         <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 16, marginTop: 12 }}>{displayName}</div>
         <div style={{ background: '#EBF5FF', borderRadius: 14, padding: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 13, color: '#4B5563' }}>{project.taskCount} {isEn ? `of ${project.progress > 0 ? Math.round(project.taskCount / (project.progress / 100)) : project.taskCount} ${tr.ofTasks}` : `من ${project.progress > 0 ? Math.round(project.taskCount / (project.progress / 100)) : project.taskCount} ${tr.ofTasks}`}</span>
+            <span style={{ fontSize: 13, color: '#4B5563' }}>{completedTasks} {isEn ? `of ${project.taskCount} ${tr.ofTasks}` : `من ${project.taskCount} ${tr.ofTasks}`}</span>
             <span style={{ fontSize: 20, fontWeight: 700, color: '#2185C7' }}>{project.progress}%</span>
           </div>
           <ProgressBar value={project.progress} />
@@ -1916,9 +1953,11 @@ function TaskDetailScreen({ task, onBack, onReport, onUpdated, onDeleted, lang, 
   useEffect(() => {
     if (!isReal || !task.realId) return
     tasksApi.getUpdates(task.realId).then(({ items }) => {
-      setUpdates(items.map(u => ({
+      // Newest-first on the wire, oldest-first on screen — sendUpdate appends to the
+      // bottom, so without this an update you just posted appeared below the oldest one.
+      setUpdates([...items].reverse().map(u => ({
         id: u.id, author: u.authorName, authorId: u.authorId, text: u.text ?? '', textEn: u.text ?? '',
-        time: new Date(u.createdAt).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
+        time: new Date(u.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
       })))
     }).catch(() => setUpdates([]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1933,14 +1972,14 @@ function TaskDetailScreen({ task, onBack, onReport, onUpdated, onDeleted, lang, 
       tasksApi.addUpdate(task.realId, pending).then(u => {
         setUpdates(prev => [...prev, {
           id: u.id, author: u.authorName, authorId: u.authorId, text: u.text ?? '', textEn: u.text ?? '',
-          time: new Date(u.createdAt).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
+          time: new Date(u.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
         }])
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
       })
       return
     }
 
-    setUpdates(prev => [...prev, { id: `u${Date.now()}`, author: isEn ? 'Mohammed' : 'محمد', text: text.trim(), textEn: text.trim(), time: new Date().toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) }])
+    setUpdates(prev => [...prev, { id: `u${Date.now()}`, author: isEn ? 'Mohammed' : 'محمد', text: text.trim(), textEn: text.trim(), time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) }])
     setText('')
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
@@ -2008,14 +2047,10 @@ function TaskDetailScreen({ task, onBack, onReport, onUpdated, onDeleted, lang, 
         )}
       </div>
 
-      <div style={{ padding: '10px 16px', background: '#FFFBEB', borderBottom: '1px solid #FEF3C7' }}>
-        <div style={{ fontSize: 12, color: '#D97706', fontWeight: 600, marginBottom: 3 }}>{tr.aiSuggestion}</div>
-        <div style={{ fontSize: 13, color: '#374151' }}>{tr.aiSuggestionText}</div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-          <button style={{ padding: '4px 12px', background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter' }}>{tr.addAction}</button>
-          <button style={{ padding: '4px 12px', background: 'transparent', color: '#9CA3AF', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter' }}>{tr.dismiss}</button>
-        </div>
-      </div>
+      {/* A "✨ Smart suggestion" card sat here with one sentence hardcoded in i18n.ts —
+          the same "the deadline is approaching and the task is awaiting final approval"
+          on every task, whatever its due date or status, with an "Add action" button
+          wired to nothing. It is out until there is a model behind it. */}
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={{ textAlign: 'center', marginBottom: 8 }}>
@@ -2050,15 +2085,17 @@ function TaskDetailScreen({ task, onBack, onReport, onUpdated, onDeleted, lang, 
       </div>
 
       <div style={{ padding: '10px 16px', borderTop: '1px solid #F0F0F0', background: '#fff' }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', display: 'flex' }}><PaperclipIcon size={20} /></button>
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', display: 'flex' }}><CameraIcon size={20} /></button>
-        </div>
+        {/* A paperclip and a camera sat here with no onClick on either — two buttons
+            that did nothing at all when tapped. Attaching a file to a task update is
+            worth building on POST /files; until then there is nothing to press. */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendUpdate()} placeholder={tr.composerPlaceholder}
             style={{ flex: 1, padding: '12px 14px', border: '1.5px solid #E5E7EB', borderRadius: 24, fontSize: 14, fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter', outline: 'none', color: '#111827', background: '#F5F7FA' }} />
           <button onClick={sendUpdate} style={{ width: 40, height: 40, borderRadius: '50%', background: text.trim() ? '#2185C7' : '#E5E7EB', border: 'none', cursor: text.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', color: text.trim() ? '#fff' : '#9CA3AF', transition: 'background 0.15s' }}>
-            {text.trim() ? <SendIcon size={17} /> : <MicIcon size={18} />}
+            {/* This showed a microphone whenever the box was empty, which reads as "hold
+                to record a voice note" — there is no recorder, and tapping it did
+                nothing. A greyed-out send button says the same thing truthfully. */}
+            <SendIcon size={17} />
           </button>
         </div>
       </div>
@@ -2552,6 +2589,35 @@ function TaskReportScreen({ task, onBack, lang }: { task: Task; onBack: () => vo
   const isRtl = lang === 'ar'
   const title = isEn ? task.titleEn : task.title
 
+  // Every figure on this screen used to be invented: a fixed 75% bar, a two-item
+  // "Review terms / Update version" checklist belonging to no task, an AI summary about
+  // contract financials, and the last three entries of the mock UPDATES array — shown
+  // identically for every task anyone opened. GET /tasks/{id}/report, its checklist and
+  // its updates have returned the real numbers since the backend was written; nothing
+  // ever called them.
+  const [report, setReport] = useState<BackendTaskReport | null>(null)
+  const [checklist, setChecklist] = useState<BackendChecklistItem[]>([])
+  const [updates, setUpdates] = useState<BackendTaskUpdate[]>([])
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    const id = task.realId
+    if (!id) return
+    Promise.all([tasksApi.getReport(id), tasksApi.getChecklist(id), tasksApi.getUpdates(id)])
+      .then(([r, c, u]) => { setReport(r); setChecklist(c); setUpdates(u.items) })
+      .catch(() => setFailed(true))
+  }, [task.realId])
+
+  const doneItems = checklist.filter(c => c.isCompleted)
+  const openItems = checklist.filter(c => !c.isCompleted)
+  const progress = report?.progress ?? 0
+  const dueText = report?.dueDate ? formatDueDate(report.dueDate, lang) : (isEn ? task.dueDateEn : task.dueDate)
+  const lastUpdateText = report?.lastUpdateAt
+    ? timeAgo(report.lastUpdateAt, lang)
+    : (isEn ? 'No updates' : 'لا توجد تحديثات')
+
+  const muted: React.CSSProperties = { fontSize: 13, color: '#9CA3AF' }
+
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: '#F5F7FA' }}>
       <div style={{ background: '#fff', padding: '14px 20px', borderBottom: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -2563,62 +2629,98 @@ function TaskReportScreen({ task, onBack, lang }: { task: Task; onBack: () => vo
           <div style={{ fontSize: 17, fontWeight: 700, color: '#111827', marginBottom: 8 }}>{title}</div>
           <StatusBadge status={task.status} lang={lang} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 20 }}>
-            {[{ label: tr.assignee, value: task.assignee }, { label: tr.dueDate, value: isEn ? task.dueDateEn : task.dueDate }, { label: tr.lastUpdate, value: tr.agoMinutes }, { label: tr.updateCount, value: `${task.updates} ${tr.updates}` }].map(item => (
+            {[
+              { label: tr.assignee, value: task.assignee || '—' },
+              { label: tr.dueDate, value: dueText },
+              { label: tr.lastUpdate, value: lastUpdateText },
+              { label: tr.updateCount, value: formatUpdateCount(report?.updateCount ?? 0, lang) },
+            ].map(item => (
               <div key={item.label}>
                 <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 4 }}>{item.label}</div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{item.value}</div>
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 13, color: '#6B7280' }}>{tr.progress}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#2185C7' }}>75%</span>
+          {/* Progress comes from the checklist, so a task without one has no percentage
+              to show — better than drawing an empty bar that reads as "0% done". */}
+          {checklist.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 13, color: '#6B7280' }}>{tr.progress}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#2185C7' }}>{progress}%</span>
+              </div>
+              <ProgressBar value={progress} />
             </div>
-            <ProgressBar value={75} />
-          </div>
+          )}
         </div>
 
         <div style={{ background: '#fff', borderRadius: 14, padding: '16px', border: '1px solid #F0F0F0' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 12 }}>{tr.completed}</div>
-          {(isEn ? ['Review terms', 'Update version'] : ['مراجعة البنود', 'تحديث النسخة']).map(item => (
-            <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}><CheckIcon size={10} /></div>
-              <span style={{ fontSize: 14, color: '#374151' }}>{item}</span>
-            </div>
-          ))}
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginTop: 14, marginBottom: 8 }}>{tr.remaining}</div>
-          {(isEn ? ['Approve final version'] : ['اعتماد النسخة النهائية']).map(item => (
-            <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #D1D5DB' }} />
-              <span style={{ fontSize: 14, color: '#374151' }}>{item}</span>
-            </div>
-          ))}
+          {checklist.length === 0 ? (
+            <div style={muted}>{isEn ? 'This task has no checklist items.' : 'لا توجد بنود في هذه المهمة.'}</div>
+          ) : (
+            <>
+              {doneItems.length > 0 && (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 12 }}>{tr.completed}</div>
+                  {doneItems.map(item => (
+                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669', flexShrink: 0 }}><CheckIcon size={10} /></div>
+                      <span style={{ fontSize: 14, color: '#374151' }}>{item.title}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+              {openItems.length > 0 && (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginTop: doneItems.length > 0 ? 14 : 0, marginBottom: 8 }}>{tr.remaining}</div>
+                  {openItems.map(item => (
+                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #D1D5DB', flexShrink: 0 }} />
+                      <span style={{ fontSize: 14, color: '#374151' }}>{item.title}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
         </div>
 
-        <div style={{ background: '#FFFBEB', borderRadius: 14, padding: '16px', border: '1px solid #FEF3C7' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#D97706', marginBottom: 8 }}>{tr.aiSummaryLabel}</div>
-          <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0 }}>{tr.aiSummaryText}</p>
-        </div>
-
-        <div style={{ background: '#FEF2F2', borderRadius: 14, padding: '16px', border: '1px solid #FECACA' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#DC2626', marginBottom: 4 }}>{tr.riskLabel}</div>
-          <p style={{ fontSize: 14, color: '#374151', margin: 0 }}>{tr.riskText}</p>
-        </div>
+        {/* Shown only when the task really is past its due date and still open — the
+            server decides that, the same way the task list's "late" badge does. */}
+        {report?.isOverdue && (
+          <div style={{ background: '#FEF2F2', borderRadius: 14, padding: '16px', border: '1px solid #FECACA' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#DC2626', marginBottom: 4 }}>{tr.riskLabel}</div>
+            <p style={{ fontSize: 14, color: '#374151', margin: 0 }}>
+              {isEn
+                ? `The due date (${dueText}) has passed and the task is not done yet.`
+                : `انقضى الموعد (${dueText}) والمهمة لم تُنجز بعد.`}
+            </p>
+          </div>
+        )}
 
         <div style={{ background: '#fff', borderRadius: 14, padding: '16px', border: '1px solid #F0F0F0' }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 12 }}>{tr.lastActivity}</div>
-          {UPDATES.slice(-3).map(upd => (
-            <div key={upd.id} style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'flex-start' }}>
-              {upd.author && <Avatar name={upd.author} size={28} />}
-              <div style={{ flex: 1 }}>
-                {upd.author && <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{upd.author}</div>}
-                <div style={{ fontSize: 13, color: '#4B5563' }}>{isEn ? upd.textEn : upd.text}</div>
-                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{upd.time}</div>
+          {updates.length === 0 ? (
+            <div style={muted}>{isEn ? 'No updates on this task yet.' : 'لا توجد تحديثات على هذه المهمة بعد.'}</div>
+          ) : (
+            updates.slice(0, 3).map(upd => (
+              <div key={upd.id} style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'flex-start' }}>
+                <Avatar name={upd.authorName} size={28} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{upd.authorName}</div>
+                  <div style={{ fontSize: 13, color: '#4B5563' }}>{upd.text}</div>
+                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{timeAgo(upd.createdAt, lang)}</div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
+
+        {failed && (
+          <div style={{ ...muted, textAlign: isRtl ? 'right' : 'left' }}>
+            {isEn ? "Couldn't load the report. Check your connection and try again." : 'تعذّر تحميل التقرير. تحقق من اتصالك وأعد المحاولة.'}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2633,6 +2735,18 @@ const notificationCategoryIcon: Record<string, React.ReactNode> = {
   DueDateOverdue: <CalendarIcon size={15} />,
   ProjectUpdates: <ProjectsIcon size={15} />,
   NewMessage: <ChatsIcon size={15} />,
+}
+
+/// Arabic counts its nouns by number: one, two, a few (3-10) and many each take a
+/// different form, so the plain `${n} ${plural}` that English gets away with produced
+/// "1 تحديثات" — "1 updates".
+function formatUpdateCount(count: number, lang: Lang): string {
+  if (lang === 'en') return count === 1 ? '1 update' : `${count} updates`
+  if (count === 0) return 'لا تحديثات'
+  if (count === 1) return 'تحديث واحد'
+  if (count === 2) return 'تحديثان'
+  if (count <= 10) return `${count} تحديثات`
+  return `${count} تحديثاً`
 }
 
 function timeAgo(iso: string, lang: Lang): string {
@@ -3518,6 +3632,15 @@ function ProfileScreen({ onLogout, lang, onChangeLang, onTerms, onPrivacy, onNot
   const displayName = currentUser.name ?? (isRtl ? 'محمد العتيبي' : 'Mohammed Al-Otaibi')
   const displayPhone = currentUser.phone ?? '+966 5XXXXXXXX'
 
+  // The three counters under the name used to be the mock arrays' lengths plus a literal
+  // 12, so every account showed "7 tasks / 3 projects / 12 completed" — more completed
+  // than it had. GET /users/me already returns all three for real.
+  const [stats, setStats] = useState<BackendUserProfile | null>(null)
+  useEffect(() => {
+    if (!currentUser.id) return
+    usersApi.getMe().then(setStats).catch(() => setStats(null))
+  }, [currentUser.id])
+
   const handleDeleteAccount = async () => {
     setDeleting(true)
     setDeleteError(null)
@@ -3538,9 +3661,12 @@ function ProfileScreen({ onLogout, lang, onChangeLang, onTerms, onPrivacy, onNot
       <div style={{ background: '#fff', padding: '28px 20px 24px', textAlign: 'center', borderBottom: '1px solid #F0F0F0' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><Avatar name={displayName} size={80} photo={currentUser.photo} /></div>
         <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 4 }}>{displayName}</div>
-        <div style={{ fontSize: 14, color: '#6B7280', fontFamily: 'Inter' }} dir="ltr">{displayPhone}</div>
+        {/* The dir attribute alone left the number reading "966501234567+" and hugging the
+            start edge on an RTL page; the explicit direction/isolate/centre wins over
+            whatever the surrounding Arabic paragraph would otherwise impose. */}
+        <div style={{ fontSize: 14, color: '#6B7280', fontFamily: 'Inter', direction: 'ltr', unicodeBidi: 'isolate', textAlign: 'center' }} dir="ltr">{displayPhone}</div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 32, marginTop: 20 }}>
-          {[{ label: tr.myTasks, value: TASKS.length + LATE_TASKS.length + UPCOMING_TASKS.length }, { label: tr.myProjects, value: PROJECTS.length }, { label: tr.completedTasks, value: 12 }].map(s => (
+          {[{ label: tr.myTasks, value: stats?.taskCount ?? 0 }, { label: tr.myProjects, value: stats?.projectCount ?? 0 }, { label: tr.completedTasks, value: stats?.completedTaskCount ?? 0 }].map(s => (
             <div key={s.label} style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#2185C7' }}>{s.value}</div>
               <div style={{ fontSize: 12, color: '#6B7280' }}>{s.label}</div>
@@ -4213,10 +4339,6 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
   const [suggestion, setSuggestion] = useState<string | null>(null)
   const [suggestionDismissed, setSuggestionDismissed] = useState(false)
   const [justLinked, setJustLinked] = useState(false)
-  const [showAttach, setShowAttach] = useState(false)
-  const [pollMode, setPollMode] = useState(false)
-  const [pollQuestion, setPollQuestion] = useState('')
-  const [pollOptions, setPollOptions] = useState(['', ''])
   const [showMenu, setShowMenu] = useState(false)
   const [reportPrompt, setReportPrompt] = useState(false)
   const [reportReason, setReportReason] = useState('')
@@ -4230,7 +4352,10 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
   useEffect(() => {
     if (!isReal || !conv.realConversationId) return
     conversationsApi.getMessages(conv.realConversationId).then(({ items }) => {
-      setMessages(items.map(m => ({
+      // The endpoint pages newest-first, which is what "load the last 30, then older"
+      // needs — but it was rendered in that same order, so every conversation read
+      // backwards, with the oldest message sitting above the composer.
+      setMessages([...items].reverse().map(m => ({
         id: m.id,
         from: m.senderId === currentUserId ? 'me' : 'them',
         text: m.text ?? '',
@@ -4340,7 +4465,9 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{personName}</div>
-          <div style={{ fontSize: 11, color: '#10B981', fontWeight: 500 }}>{tr.online}</div>
+          {/* A green "online now" used to sit here on every conversation. Nothing in the
+              app or the API tracks presence, so it was a claim about the other person
+              that was never once checked. It stays out until presence actually exists. */}
         </div>
         {isReal && (
           <div style={{ position: 'relative' }}>
@@ -4432,100 +4559,15 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
         <div ref={bottomRef} />
       </div>
 
-      {/* Poll composer */}
-      {pollMode && (
-        <div style={{ background: '#F8FAFF', borderTop: '1px solid #E8EFFF', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#2185C7' }}><ClipboardIcon size={14} /> {isRtl ? 'تصويت جديد' : 'New Poll'}</span>
-            <button onClick={() => { setPollMode(false); setPollQuestion(''); setPollOptions(['', '']) }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', display: 'flex' }}><CloseIcon size={16} /></button>
-          </div>
-          <input value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder={isRtl ? 'اكتب سؤال التصويت...' : 'Poll question...'}
-            style={{ padding: '10px 12px', border: '1.5px solid #E5E7EB', borderRadius: 10, fontSize: 14, outline: 'none', background: '#fff', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter', color: '#111827' }} />
-          {pollOptions.map((opt, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8 }}>
-              <input value={opt} onChange={e => { const n = [...pollOptions]; n[i] = e.target.value; setPollOptions(n) }}
-                placeholder={`${isRtl ? 'خيار' : 'Option'} ${i + 1}`}
-                style={{ flex: 1, padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: 10, fontSize: 13, outline: 'none', background: '#fff', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter', color: '#111827' }} />
-              {pollOptions.length > 2 && (
-                <button onClick={() => setPollOptions(pollOptions.filter((_, j) => j !== i))}
-                  style={{ width: 34, background: '#FEF2F2', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CloseIcon size={14} /></button>
-              )}
-            </div>
-          ))}
-          <div style={{ display: 'flex', gap: 8 }}>
-            {pollOptions.length < 5 && (
-              <button onClick={() => setPollOptions([...pollOptions, ''])}
-                style={{ flex: 1, padding: '9px', border: '1.5px dashed #C0D8F0', borderRadius: 10, background: 'none', cursor: 'pointer', color: '#2185C7', fontSize: 13, fontWeight: 500, fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter' }}>
-                + {isRtl ? 'إضافة خيار' : 'Add option'}
-              </button>
-            )}
-            <button
-              onClick={() => {
-                if (!pollQuestion.trim() || pollOptions.filter(o => o.trim()).length < 2) return
-                const msg: ChatMessage = {
-                  id: `m${Date.now()}`, from: 'me',
-                  text: `📊 ${pollQuestion}\n${pollOptions.filter(o => o.trim()).map((o, i) => `${i + 1}. ${o}`).join('\n')}`,
-                  textEn: `📊 ${pollQuestion}\n${pollOptions.filter(o => o.trim()).map((o, i) => `${i + 1}. ${o}`).join('\n')}`,
-                  time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-                }
-                setMessages(prev => [...prev, msg])
-                setPollMode(false); setPollQuestion(''); setPollOptions(['', ''])
-                setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 60)
-              }}
-              style={{ padding: '9px 20px', border: 'none', borderRadius: 10, background: '#2185C7', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter' }}>
-              {isRtl ? 'إرسال' : 'Send'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Attach menu */}
-      {showAttach && (
-        <>
-          <div onClick={() => setShowAttach(false)} style={{ position: 'absolute', inset: 0, zIndex: 10 }} />
-          <div style={{
-            position: 'absolute', bottom: 70, left: 12, right: 12, zIndex: 11,
-            background: '#fff', borderRadius: 18, padding: '8px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.15)', border: '1px solid #F0F0F0',
-            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2,
-          }}>
-            {[
-              { icon: <ImageIcon size={24} />, iconColor: '#2185C7', label: isRtl ? 'صورة' : 'Image', color: '#EBF5FF', action: () => { const m: ChatMessage = { id: `m${Date.now()}`, from: 'me', text: '🖼️ [صورة]', textEn: '🖼️ [Image]', time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) }; setMessages(p => [...p, m]); setShowAttach(false); setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 60) } },
-              { icon: <PaperclipIcon size={24} />, iconColor: '#D97706', label: isRtl ? 'ملف' : 'File', color: '#FEF3C7', action: () => { const m: ChatMessage = { id: `m${Date.now()}`, from: 'me', text: '📎 [ملف.pdf]', textEn: '📎 [document.pdf]', time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) }; setMessages(p => [...p, m]); setShowAttach(false); setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 60) } },
-              { icon: <PinIcon size={24} />, iconColor: '#DB2777', label: isRtl ? 'الموقع' : 'Location', color: '#FCE7F3', action: () => { const m: ChatMessage = { id: `m${Date.now()}`, from: 'me', text: '📍 [مشاركة الموقع]', textEn: '📍 [Location shared]', time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) }; setMessages(p => [...p, m]); setShowAttach(false); setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 60) } },
-              { icon: <CameraIcon size={24} />, iconColor: '#059669', label: isRtl ? 'الكاميرا' : 'Camera', color: '#F0FDF4', action: () => { const m: ChatMessage = { id: `m${Date.now()}`, from: 'me', text: '📷 [صورة من الكاميرا]', textEn: '📷 [Camera photo]', time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) }; setMessages(p => [...p, m]); setShowAttach(false); setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 60) } },
-              { icon: <ClipboardIcon size={24} />, iconColor: '#8B5CF6', label: isRtl ? 'تصويت' : 'Poll', color: '#F3E8FF', action: () => { setShowAttach(false); setPollMode(true) } },
-            ].map(item => (
-              <button key={item.label} onClick={item.action}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 8px', borderRadius: 14, background: item.color, border: 'none', cursor: 'pointer' }}>
-                <span style={{ color: item.iconColor, display: 'flex' }}>{item.icon}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#374151', fontFamily: isRtl ? 'IBM Plex Sans Arabic' : 'Inter' }}>{item.label}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      {/* An attach sheet used to sit here offering Image, File, Location, Camera and
+          Poll. None of them sent anything: each appended a "🖼️ [صورة]" line to this
+          screen's own state, so the sender saw a photo they had never sent and the
+          other person saw nothing at all. The backend does support attachments
+          (POST /files, and MessageDto carries them), so this comes back when the
+          upload and the attachment bubble are actually built. */}
 
       {/* Input bar */}
       <div style={{ background: '#fff', padding: '10px 12px', borderTop: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', gap: 8 }}>
-        {/* Attach button */}
-        <button
-          onClick={() => { setShowAttach(v => !v); setPollMode(false) }}
-          style={{
-            width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-            background: showAttach ? '#2185C7' : '#F5F7FA',
-            border: `1.5px solid ${showAttach ? '#2185C7' : '#E5E7EB'}`,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.15s',
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"
-              stroke={showAttach ? '#fff' : '#6B7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-
         <input
           value={text}
           onChange={e => setText(e.target.value)}
