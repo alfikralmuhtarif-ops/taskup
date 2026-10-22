@@ -223,14 +223,14 @@ public class ChatService(
         await realTimeNotifier.NotifyUserAsync(otherUserId, "message:new", messageDto, cancellationToken);
 
         await notificationPublisher.PublishAsync(
-            otherUserId, NotificationCategory.NewMessage, sender, request.Text, nameof(Conversation), conversationId, cancellationToken);
+            otherUserId, NotificationCategory.NewMessage, NotificationText.Of(sender), request.Text, nameof(Conversation), conversationId, cancellationToken);
 
         if (request.Mentions is { Count: > 0 })
         {
             foreach (var mentionedUserId in request.Mentions.Distinct().Where(id => id != userId))
             {
                 await notificationPublisher.PublishAsync(
-                    mentionedUserId, NotificationCategory.Mention, $"{sender} mentioned you", request.Text, nameof(Conversation), conversationId, cancellationToken);
+                    mentionedUserId, NotificationCategory.Mention, new NotificationText(NotificationTemplate.Mentioned, sender), request.Text, nameof(Conversation), conversationId, cancellationToken);
             }
         }
 

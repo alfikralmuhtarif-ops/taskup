@@ -12,7 +12,7 @@ public class NotificationPublisher(TaskUpDbContext db, IPushSender pushSender, I
     public async Task PublishAsync(
         Guid recipientId,
         NotificationCategory category,
-        string title,
+        NotificationText title,
         string? body,
         string? relatedEntityType,
         Guid? relatedEntityId,
@@ -26,12 +26,20 @@ public class NotificationPublisher(TaskUpDbContext db, IPushSender pushSender, I
             return;
         }
 
+        // The wording is settled here, where the recipient is known. A user who has never
+        // touched the language setting is Ar by default, which is also the app's default.
+        var language = await db.Users
+            .Where(u => u.Id == recipientId)
+            .Select(u => u.Language)
+            .FirstOrDefaultAsync(cancellationToken);
+        var renderedTitle = title.Render(language);
+
         var notification = new Domain.Notifications.Notification
         {
             Id = Guid.NewGuid(),
             RecipientId = recipientId,
             Category = category,
-            Title = title,
+            Title = renderedTitle,
             Body = body,
             RelatedEntityType = relatedEntityType,
             RelatedEntityId = relatedEntityId,
@@ -55,7 +63,7 @@ public class NotificationPublisher(TaskUpDbContext db, IPushSender pushSender, I
         var pushTokens = await db.Devices.Where(d => d.UserId == recipientId).Select(d => d.PushToken).ToListAsync(cancellationToken);
         if (pushTokens.Count > 0)
         {
-            await pushSender.SendAsync(pushTokens, title, body, cancellationToken: cancellationToken);
+            await pushSender.SendAsync(pushTokens, renderedTitle, body, cancellationToken: cancellationToken);
         }
     }
 }

@@ -60,7 +60,7 @@ public class OverdueTaskSweepJob(IServiceScopeFactory scopeFactory, ILogger<Over
         {
             await publisher.PublishAsync(
                 task.OwnerId, NotificationCategory.DueDateOverdue,
-                "Task is overdue", task.Title, "TaskItem", task.Id, cancellationToken);
+                new NotificationText(NotificationTemplate.TaskOverdue), task.Title, "TaskItem", task.Id, cancellationToken);
         }
     }
 }

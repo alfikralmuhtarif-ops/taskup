@@ -126,7 +126,7 @@ public class TaskService(
         {
             await notificationPublisher.PublishAsync(
                 request.OwnerId.Value, NotificationCategory.TaskAssigned,
-                "You were assigned a task", task.Title, nameof(TaskItem), task.Id, cancellationToken);
+                new NotificationText(NotificationTemplate.TaskAssigned), task.Title, nameof(TaskItem), task.Id, cancellationToken);
         }
 
         return await BuildDetailAsync(task.Id, cancellationToken);
@@ -171,7 +171,7 @@ public class TaskService(
         {
             await notificationPublisher.PublishAsync(
                 request.OwnerId.Value, NotificationCategory.TaskAssigned,
-                "You were assigned a task", task.Title, nameof(TaskItem), task.Id, cancellationToken);
+                new NotificationText(NotificationTemplate.TaskAssigned), task.Title, nameof(TaskItem), task.Id, cancellationToken);
         }
 
         return await BuildDetailAsync(taskId, cancellationToken);
@@ -391,7 +391,7 @@ public class TaskService(
             {
                 await notificationPublisher.PublishAsync(
                     mentionedUserId, NotificationCategory.Mention,
-                    $"{author.Name} mentioned you", task.Title, nameof(TaskItem), taskId, cancellationToken);
+                    new NotificationText(NotificationTemplate.Mentioned, author.Name), task.Title, nameof(TaskItem), taskId, cancellationToken);
             }
         }
 
@@ -399,7 +399,7 @@ public class TaskService(
         {
             await notificationPublisher.PublishAsync(
                 recipientId!.Value, NotificationCategory.TaskUpdated,
-                $"{author.Name} posted an update", task.Title, nameof(TaskItem), taskId, cancellationToken);
+                new NotificationText(NotificationTemplate.TaskUpdated, author.Name), task.Title, nameof(TaskItem), taskId, cancellationToken);
         }
 
         return new TaskUpdateDto(update.Id, userId, author.Name, author.AvatarUrl, update.Type.ToString(), update.Text, update.CreatedAt, attachmentDtos);
