@@ -92,6 +92,14 @@ async function request<T>(path: string, init: RequestInit = {}, isRetry = false)
     } catch {
       // ignore non-JSON error bodies
     }
+    // Never throw an empty message. Two things produced one at once: the OTP rate
+    // limiter answers 429 with no body at all, and HTTP/2 carries no reason phrase, so
+    // res.statusText is "" as well. Every screen renders `{error && <p>{error}</p>}`,
+    // so the empty string rendered nothing — the button looked like it had ignored the
+    // tap. Callers localize further (see describeError in App.tsx); this is the floor.
+    if (!message) {
+      message = `HTTP ${res.status}`
+    }
     throw new ApiError(res.status, message)
   }
 

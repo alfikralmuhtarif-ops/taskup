@@ -877,7 +877,7 @@ function PhoneScreen({ onNext, onBack, onNotRegistered, lang, mode }: { onNext: 
       if (mode === 'login' && e instanceof ApiError && e.status === 404) {
         setNotRegistered(true)
       } else {
-        setError(e instanceof Error ? e.message : String(e))
+        setError(describeError(e, isRtl))
       }
     } finally {
       setLoading(false)
@@ -989,7 +989,7 @@ function OTPScreen({ requestId, onNext, onBack, lang, mode }: {
       const profile = await usersApi.getMe()
       onNext(profile, isNewUser)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(describeError(e, isRtl))
     } finally {
       setLoading(false)
     }
@@ -1415,7 +1415,7 @@ function SearchScreen({ onBack, onOpenTask, onOpenProject, onOpenPerson, onOpenC
     const handle = setTimeout(() => {
       searchApi.search(trimmed, scope || undefined)
         .then(res => { setResults(res.items); setError(null) })
-        .catch((e: unknown) => { setResults([]); setError(e instanceof ApiError ? e.message : String(e)) })
+        .catch((e: unknown) => { setResults([]); setError(describeError(e, isRtl)) })
         .finally(() => setLoading(false))
     }, 300)
     return () => clearTimeout(handle)
@@ -1726,7 +1726,7 @@ function ProjectDetailScreen({ project, onBack, onTaskClick, onCreateTask, onUpd
       await projectsApi.delete(project.realId)
       onDeleted()
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : String(e))
+      setDeleteError(describeError(e, isRtl))
       setDeleting(false)
     }
   }
@@ -1741,7 +1741,7 @@ function ProjectDetailScreen({ project, onBack, onTaskClick, onCreateTask, onUpd
       setShowEdit(false)
       onUpdated()
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : String(e))
+      setSaveError(describeError(e, isRtl))
     } finally {
       setSaving(false)
     }
@@ -1936,7 +1936,7 @@ function TaskDetailScreen({ task, onBack, onReport, onUpdated, onDeleted, lang, 
       await tasksApi.delete(task.realId)
       onDeleted()
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : String(e))
+      setDeleteError(describeError(e, isRtl))
       setDeleting(false)
     }
   }
@@ -1951,7 +1951,7 @@ function TaskDetailScreen({ task, onBack, onReport, onUpdated, onDeleted, lang, 
       setShowEdit(false)
       onUpdated()
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : String(e))
+      setSaveError(describeError(e, isRtl))
     } finally {
       setSaving(false)
     }
@@ -2441,7 +2441,7 @@ function CreateTaskScreen({ onBack, onCreate, lang, defaultProjectId, currentUse
       // Previously this silently fell through to onCreate() on failure, showing success
       // even when the task was never actually saved (e.g. during the CORS bug) — now the
       // failure is surfaced instead of hidden.
-      setCreateError(e instanceof Error ? e.message : String(e))
+      setCreateError(describeError(e, isRtl))
     } finally {
       setCreating(false)
     }
@@ -2906,7 +2906,7 @@ function NotifSettingsScreen({ onBack, lang }: { onBack: () => void; lang: Lang 
         })
         setError(null)
       })
-      .catch((e: unknown) => setError(e instanceof ApiError ? e.message : String(e)))
+      .catch((e: unknown) => setError(describeError(e, isRtl)))
   }, [])
 
   // Optimistic: flip the switch immediately, roll the whole map back if the PATCH fails.
@@ -2930,7 +2930,7 @@ function NotifSettingsScreen({ onBack, lang }: { onBack: () => void; lang: Lang 
 
     Promise.all(calls).catch((e: unknown) => {
       setSettings(previous)
-      setError(e instanceof ApiError ? e.message : String(e))
+      setError(describeError(e, isRtl))
     })
   }
 
@@ -3058,7 +3058,7 @@ function ContactsSettingsScreen({ onBack, lang, onMessage }: { onBack: () => voi
     const handle = setTimeout(() => {
       peopleApi.search(search.trim())
         .then(res => { setPeople(res); setError(null) })
-        .catch((e: unknown) => { setPeople([]); setError(e instanceof ApiError ? e.message : String(e)) })
+        .catch((e: unknown) => { setPeople([]); setError(describeError(e, isRtl)) })
     }, search.trim() ? 300 : 0)
     return () => clearTimeout(handle)
   }, [search])
@@ -3079,7 +3079,7 @@ function ContactsSettingsScreen({ onBack, lang, onMessage }: { onBack: () => voi
       setInvitePhone(''); setInviteName(''); setShowInviteForm(false)
       loadInvites()
     } catch (e: unknown) {
-      setInviteError(e instanceof ApiError ? e.message : String(e))
+      setInviteError(describeError(e, isRtl))
     } finally {
       setInviting(false)
     }
@@ -3254,7 +3254,7 @@ function BlockedUsersScreen({ onBack, lang }: { onBack: () => void; lang: Lang }
   const load = () => {
     peopleApi.listBlocked()
       .then(res => { setBlocked(res); setError(null) })
-      .catch((e: unknown) => { setBlocked([]); setError(e instanceof ApiError ? e.message : String(e)) })
+      .catch((e: unknown) => { setBlocked([]); setError(describeError(e, isRtl)) })
   }
   useEffect(load, [])
 
@@ -3264,7 +3264,7 @@ function BlockedUsersScreen({ onBack, lang }: { onBack: () => void; lang: Lang }
       await peopleApi.unblock(userId)
       setBlocked(prev => (prev ?? []).filter(b => b.userId !== userId))
     } catch (e: unknown) {
-      setError(e instanceof ApiError ? e.message : String(e))
+      setError(describeError(e, isRtl))
     } finally {
       setUnblocking(null)
     }
@@ -3378,7 +3378,7 @@ function ShareAppScreen({ onBack, lang }: { onBack: () => void; lang: Lang }) {
       await copyLink()
     } catch (e) {
       // Dismissing the sheet rejects; that is not an error worth showing.
-      const message = e instanceof Error ? e.message : String(e)
+      const message = describeError(e, isRtl)
       if (/cancel|abort|dismiss/i.test(message)) return
       setShareError(message)
     }
@@ -3585,6 +3585,38 @@ function toWesternDigits(raw: string): string {
 // "966501234567" or "0501234567" while +966 is already selected), which would otherwise
 // be sent as a double-prefixed, malformed number. Same normalization the admin panel's
 // login field needed after that exact bug created a ghost account.
+// What to actually show the user when a request fails.
+//
+// Every screen renders `{error && <p>{error}</p>}`, so an error whose message came out
+// empty displayed nothing and the tap looked as if it had been ignored. That is what the
+// OTP rate limit did: 429 with an empty body, and HTTP/2 carries no reason phrase for
+// res.statusText to fall back on, so the message was "". The client no longer produces an
+// empty message; this turns the ones a user can actually hit into a sentence in their
+// language, and leaves anything else as the server worded it.
+function describeError(e: unknown, isRtl: boolean): string {
+  if (e instanceof ApiError) {
+    if (e.status === 429) {
+      return isRtl
+        ? 'حاولتَ مرات كثيرة في وقت قصير. انتظر نحو ربع ساعة ثم أعد المحاولة.'
+        : 'Too many attempts in a short time. Wait about fifteen minutes and try again.'
+    }
+    if (e.status >= 500) {
+      return isRtl ? 'عطل في الخادم. حاول بعد قليل.' : 'The server had a problem. Please try again shortly.'
+    }
+    if (e.message) return e.message
+    return isRtl ? `تعذّر إتمام الطلب (${e.status}).` : `The request failed (${e.status}).`
+  }
+  // fetch() rejects like this when the device is offline or the API is unreachable, and
+  // "Failed to fetch" tells a user nothing.
+  if (e instanceof Error && /failed to fetch|load failed|networkerror/i.test(e.message)) {
+    return isRtl
+      ? 'تعذّر الوصول إلى الخادم. تأكد من اتصالك بالإنترنت.'
+      : 'Could not reach the server. Check your internet connection.'
+  }
+  if (e instanceof Error && e.message) return e.message
+  return isRtl ? 'حدث خطأ غير متوقع.' : 'Something went wrong.'
+}
+
 function normalizeLocalPhone(raw: string, countryCode: string): string {
   const digits = toWesternDigits(raw).replace(/\D/g, '')
   const cc = countryCode.replace(/\D/g, '')
@@ -3617,7 +3649,7 @@ function ChangePhoneSheet({ lang, onClose, onChanged }: { lang: Lang; onClose: (
       setRequestId(res.requestId)
       setStep('otp')
     } catch (e: unknown) {
-      setError(e instanceof ApiError ? e.message : String(e))
+      setError(describeError(e, isRtl))
     } finally {
       setBusy(false)
     }
@@ -3631,7 +3663,7 @@ function ChangePhoneSheet({ lang, onClose, onChanged }: { lang: Lang; onClose: (
       onChanged(profile)
       onClose()
     } catch (e: unknown) {
-      setError(e instanceof ApiError ? e.message : String(e))
+      setError(describeError(e, isRtl))
     } finally {
       setBusy(false)
     }
@@ -3745,7 +3777,7 @@ function ProfileScreen({ onLogout, lang, onChangeLang, onTerms, onPrivacy, onNot
       await usersApi.deleteMe()
       onLogout()
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : String(e))
+      setDeleteError(describeError(e, isRtl))
       setDeleting(false)
     }
   }
@@ -4289,7 +4321,7 @@ function ConversationsScreen({ onOpenChat, onNewChat, lang, currentUserId, refre
     conversationsApi.list()
       .then(items => { setConversations(items.map(c => mapBackendConversation(c, lang))); setLoadError(null) })
       // Surfaced, not swallowed — an empty list and a failed request looked identical before.
-      .catch((e: unknown) => { setConversations([]); setLoadError(e instanceof ApiError ? e.message : String(e)) })
+      .catch((e: unknown) => { setConversations([]); setLoadError(describeError(e, isRtl)) })
   }, [currentUserId, lang, refreshKey, liveVersion])
 
   // A message arriving over the hub changes this list's previews and ordering, so
@@ -4500,7 +4532,7 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
       await peopleApi.block(conv.realUserId)
       onBack()
     } catch (e) {
-      setActionNotice(e instanceof Error ? e.message : String(e))
+      setActionNotice(describeError(e, isRtl))
     }
   }
 
@@ -4513,7 +4545,7 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
       setReportMessageId(null)
       setActionNotice(isRtl ? 'تم إرسال البلاغ' : 'Report submitted')
     } catch (e) {
-      setActionNotice(e instanceof Error ? e.message : String(e))
+      setActionNotice(describeError(e, isRtl))
     }
   }
 
@@ -4526,7 +4558,7 @@ function ChatScreen({ conv, onBack, lang, currentUserId }: { conv: Conversation;
       conversationsApi.sendMessage(conv.realConversationId, pending).then(m => {
         setMessages(prev => [...prev, { id: m.id, from: 'me', text: m.text ?? '', textEn: m.text ?? '', time: formatTime(m.createdAt) }])
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 60)
-      }).catch(e => setActionNotice(e instanceof Error ? e.message : String(e)))
+      }).catch(e => setActionNotice(describeError(e, isRtl)))
       return
     }
 
@@ -4848,7 +4880,7 @@ function CreateProjectScreen({ onBack, onCreate, lang }: { onBack: () => void; o
     } catch (e) {
       // Previously this always showed the success screen even when the project was never
       // actually saved (e.g. during the CORS bug) — now the failure is surfaced instead.
-      setCreateError(e instanceof Error ? e.message : String(e))
+      setCreateError(describeError(e, isRtl))
     } finally {
       setCreating(false)
     }
@@ -5255,7 +5287,7 @@ function NotesWorkspace({ lang, currentUserId, onExit }: { lang: Lang; currentUs
       notesApi.list({
         q: searchQuery.trim() || undefined,
         includeDeleted: filter.type === 'trash',
-      }).then(setNotes).catch(e => { setNotes([]); setListError(e instanceof Error ? e.message : String(e)) })
+      }).then(setNotes).catch(e => { setNotes([]); setListError(describeError(e, isRtl)) })
     }, 300)
     return () => clearTimeout(handle)
   }, [currentUserId, filter, searchQuery, retryKey])
