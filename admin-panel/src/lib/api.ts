@@ -62,6 +62,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     } catch {
       // ignore non-JSON error bodies
     }
+    // Never throw an empty message. The OTP rate limiter answers 429 with no body at
+    // all, and HTTP/2 carries no reason phrase, so res.statusText is "" too. Login
+    // renders `{error && <div>{error}</div>}`, where the empty string is falsy — so the
+    // button looked dead: no next step, no error, nothing. Callers localize further.
+    if (!message) {
+      message = `HTTP ${res.status}`
+    }
     throw new ApiError(res.status, message)
   }
 

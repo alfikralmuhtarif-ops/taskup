@@ -13,6 +13,27 @@ function normalizeLocalPhone(raw: string): string {
   return digits.slice(0, 9)
 }
 
+/// What to put on screen when a request fails. An ApiError whose message came out
+/// empty rendered nothing at all, so a rate-limited login looked like a dead button.
+function describeError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    if (err.status === 429) {
+      return 'حاولتَ مرات كثيرة في وقت قصير. انتظر نحو ربع ساعة ثم أعد المحاولة.'
+    }
+    if (err.status === 404) {
+      return 'هذا الرقم غير مسجّل في TaskUp. سجّل به في التطبيق أولاً.'
+    }
+    if (err.status >= 500) {
+      return 'عطل في الخادم. حاول بعد قليل.'
+    }
+    return err.message || fallback
+  }
+  if (err instanceof Error && /failed to fetch|load failed|networkerror/i.test(err.message)) {
+    return 'تعذّر الوصول إلى الخادم. تأكد من اتصالك بالإنترنت.'
+  }
+  return fallback
+}
+
 export default function Login() {
   const [step, setStep] = useState<'phone' | 'otp'>('phone')
   const [phone, setPhone] = useState('')
@@ -31,7 +52,7 @@ export default function Login() {
       setRequestId(res.requestId)
       setStep('otp')
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذر إرسال الرمز')
+      setError(describeError(err, 'تعذر إرسال الرمز'))
     } finally {
       setLoading(false)
     }
@@ -52,7 +73,7 @@ export default function Login() {
       login(res.accessToken)
       navigate('/', { replace: true })
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'رمز غير صحيح')
+      setError(describeError(err, 'رمز غير صحيح'))
     } finally {
       setLoading(false)
     }
