@@ -146,6 +146,11 @@ builder.Services.AddCors(options =>
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
+// The per-request key under which the allow-list middleware (further down) marks an OTP
+// request whose number is a fixed-code test number, so this policy can exempt it. A const
+// rather than a bare string so the two ends cannot drift apart.
+const string OtpAllowlistMarker = "otp.allowlisted";
+
 // Caps how many OTPs any one client IP can trigger — the dev SMS sender is free/local, but
 // in production this is a real per-message cost and a spam/harassment vector (bombing a
 // phone number with codes it never asked for) if left unbounded. Partitioned by IP (not a
@@ -154,14 +159,28 @@ builder.Services.AddProblemDetails();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("otp", httpContext => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+    options.AddPolicy("otp", httpContext =>
+    {
+        // Fixed-code test numbers (the App Review number) are exempted from the cap: a
+        // reviewer retrying, or several reviewers behind one IP, must never meet a 429
+        // during review. The flag is set by the middleware below — the only point where
+        // the phone is visible before model binding — and only ever for a number that is
+        // both on the allow-list AND has a fixed code configured, so it costs everyone
+        // else nothing and lapses on its own the moment the fixed code is cleared.
+        if (httpContext.Items.TryGetValue(OtpAllowlistMarker, out var marked) && marked is true)
         {
-            PermitLimit = 5,
-            Window = TimeSpan.FromMinutes(15),
-            QueueLimit = 0,
-        }));
+            return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("otp-allowlisted");
+        }
+
+        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0,
+            });
+    });
 });
 
 // TLS 1.2/1.3-only is the real posture whenever Kestrel terminates TLS directly.
@@ -348,6 +367,46 @@ app.UseCors("Frontends");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Flags an OTP request whose number is a fixed-code test number, so the "otp" policy can
+// exempt it from the per-IP cap. This is the only place the phone can be read before model
+// binding, so the body is buffered and rewound for the controller to re-read unchanged.
+// Everything is defensive: any unreadable or non-matching body simply leaves the flag
+// unset, and the body is always rewound when seekable — so this can only ever turn the cap
+// OFF for the listed test number, never block an OTP request that would otherwise succeed.
+app.Use(async (context, next) =>
+{
+    if (otpDevOptions.IsEnabled &&
+        HttpMethods.IsPost(context.Request.Method) &&
+        (context.Request.Path.Equals("/auth/otp/request", StringComparison.OrdinalIgnoreCase) ||
+         context.Request.Path.Equals("/users/me/phone/change/request", StringComparison.OrdinalIgnoreCase)))
+    {
+        try
+        {
+            context.Request.EnableBuffering();
+            using var doc = await System.Text.Json.JsonDocument.ParseAsync(
+                context.Request.Body, cancellationToken: context.RequestAborted);
+            var root = doc.RootElement;
+            var countryCode = root.TryGetProperty("countryCode", out var cc) ? cc.GetString() : null;
+            var phone = root.TryGetProperty("phone", out var ph) ? ph.GetString() : null;
+            if (otpDevOptions.AppliesTo($"{countryCode}{phone}"))
+            {
+                context.Items[OtpAllowlistMarker] = true;
+            }
+        }
+        catch
+        {
+            // Unreadable/unexpected body: treat as an ordinary, rate-limited caller.
+        }
+        finally
+        {
+            if (context.Request.Body.CanSeek) { context.Request.Body.Position = 0; }
+        }
+    }
+
+    await next();
+});
+
 app.UseRateLimiter();
 
 var fileStorageOptions = app.Services.GetRequiredService<FileStorageOptions>();
